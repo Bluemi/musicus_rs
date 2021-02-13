@@ -13,9 +13,6 @@ impl FileManager {
 			current_path,
 		}
 	}
-
-	pub fn test(&self) {
-	}
 }
 
 impl Renderable for FileManager {

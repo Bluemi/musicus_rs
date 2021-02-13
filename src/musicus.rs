@@ -2,6 +2,8 @@ use crate::file_manager::FileManager;
 use crate::render::{RenderObject, Renderable};
 use pancurses::{Window, Input};
 
+const FILE_BROWSER_OFFSET: i32 = 5;
+
 pub struct Musicus {
 	file_manager: FileManager,
 	window: Window,
@@ -23,17 +25,12 @@ impl Musicus {
 		while running {
 			let render_object = self.file_manager.get_render_object();
 			self.render(render_object);
-			let i = self.window.getch().unwrap();
-			match i {
+			match self.window.getch().unwrap() {
 				Input::Character(c) => {
 					if c == 'q' {
 						running = false;
 					}
 				}
-				Input::KeyDown => {}
-				Input::KeyUp => {}
-				Input::KeyLeft => {}
-				Input::KeyRight => {}
 				_ => {}
 			}
 		}
@@ -41,7 +38,17 @@ impl Musicus {
 	}
 
 	fn render(&self, render_object: RenderObject) {
-		self.window.mvaddstr(10, 10, "heyhey");
+		self.render_panels(&render_object);
 		self.window.refresh();
+	}
+
+	fn render_panels(&self, render_object: &RenderObject) {
+		let mut x_pos = self.window.get_max_x();
+		for panel in render_object.panels.iter().rev() {
+			x_pos -= panel.get_width() as i32 + FILE_BROWSER_OFFSET;
+			for (y_pos, e) in panel.entries.iter().enumerate() {
+				self.window.mvaddstr(y_pos as i32, x_pos, &e.text);
+			}
+		}
 	}
 }

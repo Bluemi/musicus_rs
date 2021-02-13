@@ -30,6 +30,14 @@ impl RenderPanel {
 			entries: Vec::new(),
 		}
 	}
+
+	pub fn get_width(&self) -> usize {
+		let mut width = 0;
+		for e in &self.entries {
+			width = width.max(e.text.len());
+		}
+		width
+	}
 }
 
 impl From<String> for RenderEntry {
