@@ -1,7 +1,8 @@
 use std::path::{PathBuf, Path};
 use std::env::current_dir;
-use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry};
+use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::collections::HashMap;
+use std::fs::DirEntry;
 
 pub struct FileManager {
 	pub current_path: PathBuf,
@@ -25,13 +26,10 @@ impl FileManager {
 
 	pub fn move_right(&mut self) {
 		let (cursor_position, _) = self.positions.get(&PathBuf::from(&self.current_path)).unwrap_or(&(0, 0));
-		if let Ok(mut read_dir) = self.current_path.read_dir() {
-			if let Some(Ok(dir_entry)) = read_dir.nth(*cursor_position) {
-				if let Ok(ft) = dir_entry.file_type() {
-					if ft.is_dir() {
-						self.current_path = dir_entry.path();
-					}
-				}
+
+		if let Some(dir_entry) = self.get_dir_entries(&self.current_path).iter().nth(*cursor_position) {
+			if !dir_entry.is_file {
+				self.current_path = dir_entry.path.clone();
 			}
 		}
 	}
@@ -56,7 +54,23 @@ impl FileManager {
 	}
 
 	fn get_current_num_entries(&self) -> usize {
-		self.current_path.read_dir().unwrap().count()
+		self.get_dir_entries(&self.current_path).len()
+	}
+
+	fn get_dir_entries(&self, path: &Path) -> Vec<DirectoryEntry> {
+		let mut entries = Vec::new();
+		if let Ok(read_dir) = path.read_dir() {
+			for entry in read_dir {
+				if let Ok(entry) = entry {
+					let entry = DirectoryEntry::from(entry);
+					if !entry.filename.starts_with(".") {
+						entries.push(entry);
+					}
+				}
+			}
+		}
+		entries.sort();
+		entries
 	}
 }
 
@@ -66,10 +80,9 @@ impl Renderable for FileManager {
 		for c in self.current_path.ancestors().collect::<Vec<&Path>>().iter().rev() {
 			let (cursor_position, scroll_position) = self.positions.get(&PathBuf::from(c)).unwrap_or(&(0, 0));
 			let mut panel = RenderPanel::new(*cursor_position, *scroll_position);
-			if let Ok(read_dir) = c.read_dir() {
-				for i in read_dir {
-					panel.entries.push(RenderEntry::from(i.unwrap().file_name()));
-				}
+			for entry in self.get_dir_entries(c) {
+				let color = if entry.is_file { RenderColor::WHITE } else { RenderColor::BLUE };
+				panel.entries.push(RenderEntry::new(entry.filename, color));
 			}
 			render_object.panels.push(panel);
 		}
@@ -77,3 +90,21 @@ impl Renderable for FileManager {
 		render_object
 	}
 }
+
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+struct DirectoryEntry {
+	pub is_file: bool,
+	pub filename: String,
+	pub path: PathBuf,
+}
+
+impl From<DirEntry> for DirectoryEntry {
+	fn from(dir_entry: DirEntry) -> Self {
+		DirectoryEntry {
+			filename: dir_entry.file_name().into_string().unwrap(),
+			is_file: dir_entry.file_type().map_or(true, |de| de.is_file()),
+			path: dir_entry.path(),
+		}
+	}
+}
+

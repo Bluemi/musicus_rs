@@ -1,5 +1,3 @@
-use std::ffi::OsString;
-
 pub struct RenderObject {
 	pub panels: Vec<RenderPanel>,
 }
@@ -12,6 +10,12 @@ pub struct RenderPanel {
 
 pub struct RenderEntry {
 	pub text: String,
+	pub color: RenderColor,
+}
+
+pub enum RenderColor {
+	WHITE,
+	BLUE
 }
 
 pub trait Renderable {
@@ -44,18 +48,11 @@ impl RenderPanel {
 	}
 }
 
-impl From<String> for RenderEntry {
-	fn from(s: String) -> Self {
+impl RenderEntry {
+	pub fn new(text: String, color: RenderColor) -> Self {
 		RenderEntry {
-			text: s,
-		}
-	}
-}
-
-impl From<OsString> for RenderEntry {
-	fn from(s: OsString) -> Self {
-		RenderEntry {
-			text: s.into_string().unwrap(),
+			text,
+			color,
 		}
 	}
 }
