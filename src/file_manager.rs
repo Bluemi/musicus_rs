@@ -2,7 +2,6 @@ use std::path::{PathBuf, Path};
 use std::env::current_dir;
 use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry};
 use std::collections::HashMap;
-use crate::musicus::log;
 
 pub struct FileManager {
 	pub current_path: PathBuf,
@@ -51,7 +50,7 @@ impl FileManager {
 		let num_entries = self.get_current_num_entries();
 		let (cursor_position, scroll_position) = self.positions.entry(PathBuf::from(&self.current_path)).or_insert((0, 0));
 		if *cursor_position < num_entries-1 {
-			*cursor_position += 1; // TODO: range check
+			*cursor_position += 1;
 			*scroll_position = (*scroll_position as i32).max(*cursor_position as i32-self.num_rows as i32 + 1) as usize;
 		}
 	}

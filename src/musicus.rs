@@ -63,6 +63,7 @@ impl Musicus {
 	}
 }
 
+#[allow(unused)]
 pub fn log(text: &str) {
 	let mut file = OpenOptions::new().write(true).create(true).append(true).open("log.txt").expect("failed to open log file");
 	file.write_all(text.as_bytes()).unwrap();
