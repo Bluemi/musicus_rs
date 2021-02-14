@@ -3,7 +3,6 @@ use std::env::current_dir;
 use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::collections::HashMap;
 use std::fs::DirEntry;
-use crate::musicus::log;
 
 pub struct FileManager {
 	pub current_path: PathBuf,
@@ -24,7 +23,6 @@ impl FileManager {
 				}
 			}
 		}
-		log(&format!("positions: {:?}", positions));
 		FileManager {
 			current_path,
 			positions,
