@@ -28,6 +28,10 @@ impl RenderObject {
 			panels: Vec::new(),
 		}
 	}
+
+	pub fn get_panels_size(&self) -> usize {
+		self.panels.iter().map(|p| p.get_width()).sum()
+	}
 }
 
 impl RenderPanel {

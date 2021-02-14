@@ -1,5 +1,5 @@
 use crate::file_manager::FileManager;
-use crate::render::{RenderObject, Renderable, RenderColor};
+use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel};
 use pancurses::{Window, Input, COLOR_WHITE, COLOR_BLACK, COLOR_BLUE};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -65,22 +65,29 @@ impl Musicus {
 	}
 
 	fn render_panels(&self, render_object: &RenderObject) {
-		let mut x_pos = self.window.get_max_x();
-		for panel in render_object.panels.iter().rev() {
-			x_pos -= panel.get_width() as i32 + FILE_BROWSER_OFFSET;
-			for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).enumerate() {
-				if panel.cursor_position == y_pos+panel.scroll_position {
-					match e.color {
-						RenderColor::WHITE => self.window.color_set(SELECTED_COLOR),
-						RenderColor::BLUE => self.window.color_set(SELECTED_DIRECTORY_COLOR),
-					};
-				} else {
-					match e.color {
-						RenderColor::WHITE => self.window.color_set(NORMAL_COLOR),
-						RenderColor::BLUE => self.window.color_set(DIRECTORY_COLOR),
-					};
-				}
-				self.window.mvaddstr(y_pos as i32, x_pos, &e.text);
+		let mut x_pos = (self.window.get_max_x() - (render_object.get_panels_size() as i32 + render_object.panels.len() as i32*FILE_BROWSER_OFFSET)).min(0);
+		for panel in render_object.panels.iter() {
+			self.render_panel(panel, x_pos);
+			x_pos += panel.get_width() as i32 + FILE_BROWSER_OFFSET;
+		}
+	}
+
+	fn render_panel(&self, panel: &RenderPanel, x_pos: i32) {
+		for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).enumerate() {
+			if panel.cursor_position == y_pos+panel.scroll_position {
+				match e.color {
+					RenderColor::WHITE => self.window.color_set(SELECTED_COLOR),
+					RenderColor::BLUE => self.window.color_set(SELECTED_DIRECTORY_COLOR),
+				};
+			} else {
+				match e.color {
+					RenderColor::WHITE => self.window.color_set(NORMAL_COLOR),
+					RenderColor::BLUE => self.window.color_set(DIRECTORY_COLOR),
+				};
+			}
+			if (e.text.len() as i32) >= -x_pos {
+				let line = &e.text[(-x_pos).max(0) as usize..];
+				self.window.mvaddstr(y_pos as i32, x_pos.max(0), line);
 			}
 		}
 	}
