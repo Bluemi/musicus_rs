@@ -54,7 +54,6 @@ impl Musicus {
 				}
 				_ => {}
 			}
-			log(&format!("current dir: {:?}\n", self.file_manager.current_path));
 		}
 		pancurses::endwin();
 	}

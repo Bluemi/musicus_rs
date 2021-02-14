@@ -3,6 +3,7 @@ use std::env::current_dir;
 use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::collections::HashMap;
 use std::fs::DirEntry;
+use crate::musicus::log;
 
 pub struct FileManager {
 	pub current_path: PathBuf,
@@ -13,9 +14,20 @@ pub struct FileManager {
 impl FileManager {
 	pub fn new(num_rows: usize) -> FileManager {
 		let current_path = current_dir().unwrap_or(PathBuf::new());
+
+		let mut positions = HashMap::new();
+
+		for (dir, root) in current_path.ancestors().zip(current_path.ancestors().skip(1)) {
+			for (i, entry) in FileManager::get_dir_entries(root).iter().enumerate() {
+				if entry.path == dir {
+					positions.insert(PathBuf::from(root), (i, 0));
+				}
+			}
+		}
+		log(&format!("positions: {:?}", positions));
 		FileManager {
 			current_path,
-			positions: HashMap::new(),
+			positions,
 			num_rows,
 		}
 	}
@@ -27,7 +39,7 @@ impl FileManager {
 	pub fn move_right(&mut self) {
 		let (cursor_position, _) = self.positions.get(&PathBuf::from(&self.current_path)).unwrap_or(&(0, 0));
 
-		if let Some(dir_entry) = self.get_dir_entries(&self.current_path).iter().nth(*cursor_position) {
+		if let Some(dir_entry) = FileManager::get_dir_entries(&self.current_path).iter().nth(*cursor_position) {
 			if !dir_entry.is_file {
 				self.current_path = dir_entry.path.clone();
 			}
@@ -54,10 +66,10 @@ impl FileManager {
 	}
 
 	fn get_current_num_entries(&self) -> usize {
-		self.get_dir_entries(&self.current_path).len()
+		FileManager::get_dir_entries(&self.current_path).len()
 	}
 
-	fn get_dir_entries(&self, path: &Path) -> Vec<DirectoryEntry> {
+	fn get_dir_entries(path: &Path) -> Vec<DirectoryEntry> {
 		let mut entries = Vec::new();
 		if let Ok(read_dir) = path.read_dir() {
 			for entry in read_dir {
@@ -80,7 +92,7 @@ impl Renderable for FileManager {
 		for c in self.current_path.ancestors().collect::<Vec<&Path>>().iter().rev() {
 			let (cursor_position, scroll_position) = self.positions.get(&PathBuf::from(c)).unwrap_or(&(0, 0));
 			let mut panel = RenderPanel::new(*cursor_position, *scroll_position);
-			for entry in self.get_dir_entries(c) {
+			for entry in FileManager::get_dir_entries(c) {
 				let color = if entry.is_file { RenderColor::WHITE } else { RenderColor::BLUE };
 				panel.entries.push(RenderEntry::new(entry.filename, color));
 			}
