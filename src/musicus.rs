@@ -1,10 +1,13 @@
 use crate::file_manager::FileManager;
 use crate::render::{RenderObject, Renderable};
-use pancurses::{Window, Input};
+use pancurses::{Window, Input, COLOR_WHITE, COLOR_BLACK, COLOR_BLUE};
 use std::fs::OpenOptions;
 use std::io::Write;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
+
+const NORMAL_COLOR: i16 = 0;
+const SELECTED_COLOR: i16 = 1;
 
 pub struct Musicus {
 	file_manager: FileManager,
@@ -14,12 +17,19 @@ pub struct Musicus {
 impl Musicus {
 	pub fn new() -> Musicus {
 		let window = pancurses::initscr();
-		pancurses::noecho();
-		pancurses::curs_set(0);
+		Musicus::init_curses();
 		Musicus {
 			file_manager: FileManager::new(window.get_max_y() as usize),
 			window
 		}
+	}
+
+	pub fn init_curses() {
+		pancurses::noecho();
+		pancurses::curs_set(0);
+		pancurses::start_color();
+		pancurses::init_pair(NORMAL_COLOR, COLOR_WHITE, COLOR_BLACK);
+		pancurses::init_pair(SELECTED_COLOR, COLOR_BLUE, COLOR_BLACK);
 	}
 
 	pub fn run(&mut self) {
@@ -55,7 +65,11 @@ impl Musicus {
 		for panel in render_object.panels.iter().rev() {
 			x_pos -= panel.get_width() as i32 + FILE_BROWSER_OFFSET;
 			for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).enumerate() {
-				if panel.cursor_position != y_pos+panel.scroll_position {
+				if panel.cursor_position == y_pos+panel.scroll_position {
+					self.window.color_set(SELECTED_COLOR);
+					self.window.mvaddstr(y_pos as i32, x_pos, &e.text);
+					self.window.color_set(NORMAL_COLOR);
+				} else {
 					self.window.mvaddstr(y_pos as i32, x_pos, &e.text);
 				}
 			}
