@@ -24,9 +24,16 @@ impl FileManager {
 
 	pub fn move_right(&mut self) {
 		let (cursor_position, _) = self.positions.get(&PathBuf::from(&self.current_path)).unwrap_or(&(0, 0));
-		if let Some(p) = self.current_path.ancestors().collect::<Vec<&Path>>().iter().rev().nth(*cursor_position) {
-			self.current_path = PathBuf::from(p);
+		if let Ok(mut read_dir) = self.current_path.read_dir() {
+			if let Some(Ok(dir_entry)) = read_dir.nth(*cursor_position) {
+				if let Ok(ft) = dir_entry.file_type() {
+					if ft.is_dir() {
+						self.current_path = dir_entry.path();
+					}
+				}
+			}
 		}
+		log(&format!("current path: {:?}", self.current_path))
 	}
 
 	pub fn move_up(&mut self) {
