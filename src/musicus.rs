@@ -17,7 +17,7 @@ impl Musicus {
 		pancurses::noecho();
 		pancurses::curs_set(0);
 		Musicus {
-			file_manager: FileManager::new(),
+			file_manager: FileManager::new(window.get_max_y() as usize),
 			window
 		}
 	}
@@ -55,7 +55,7 @@ impl Musicus {
 		for panel in render_object.panels.iter().rev() {
 			x_pos -= panel.get_width() as i32 + FILE_BROWSER_OFFSET;
 			for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).enumerate() {
-				if panel.cursor_position != y_pos {
+				if panel.cursor_position != y_pos+panel.scroll_position {
 					self.window.mvaddstr(y_pos as i32, x_pos, &e.text);
 				}
 			}

@@ -7,14 +7,16 @@ use crate::musicus::log;
 pub struct FileManager {
 	pub current_path: PathBuf,
 	pub positions: HashMap<PathBuf, (usize, usize)>, // maps Path to (cursor position, scroll position)
+	pub num_rows: usize,
 }
 
 impl FileManager {
-	pub fn new() -> FileManager {
+	pub fn new(num_rows: usize) -> FileManager {
 		let current_path = current_dir().unwrap_or(PathBuf::new());
 		FileManager {
 			current_path,
 			positions: HashMap::new(),
+			num_rows,
 		}
 	}
 
@@ -33,7 +35,6 @@ impl FileManager {
 				}
 			}
 		}
-		log(&format!("current path: {:?}", self.current_path))
 	}
 
 	pub fn move_up(&mut self) {
@@ -44,13 +45,19 @@ impl FileManager {
 				*scroll_position = *cursor_position;
 			}
 		}
-		log(&format!("cp: {} sp: {}\n", *cursor_position, *scroll_position));
 	}
 
 	pub fn move_down(&mut self) {
+		let num_entries = self.get_current_num_entries();
 		let (cursor_position, scroll_position) = self.positions.entry(PathBuf::from(&self.current_path)).or_insert((0, 0));
-		*cursor_position += 1; // TODO: range check
-		log(&format!("cp: {} sp: {}\n", *cursor_position, *scroll_position));
+		if *cursor_position < num_entries-1 {
+			*cursor_position += 1; // TODO: range check
+			*scroll_position = (*scroll_position as i32).max(*cursor_position as i32-self.num_rows as i32 + 1) as usize;
+		}
+	}
+
+	fn get_current_num_entries(&self) -> usize {
+		self.current_path.read_dir().unwrap().count()
 	}
 }
 
@@ -60,8 +67,8 @@ impl Renderable for FileManager {
 		for c in self.current_path.ancestors().collect::<Vec<&Path>>().iter().rev() {
 			let (cursor_position, scroll_position) = self.positions.get(&PathBuf::from(c)).unwrap_or(&(0, 0));
 			let mut panel = RenderPanel::new(*cursor_position, *scroll_position);
-			for f in c.read_dir() {
-				for i in f {
+			if let Ok(read_dir) = c.read_dir() {
+				for i in read_dir {
 					panel.entries.push(RenderEntry::from(i.unwrap().file_name()));
 				}
 			}
