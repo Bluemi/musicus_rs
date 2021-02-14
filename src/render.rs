@@ -6,6 +6,8 @@ pub struct RenderObject {
 
 pub struct RenderPanel {
 	pub entries: Vec<RenderEntry>,
+	pub cursor_position: usize,
+	pub scroll_position: usize,
 }
 
 pub struct RenderEntry {
@@ -25,9 +27,11 @@ impl RenderObject {
 }
 
 impl RenderPanel {
-	pub fn new() -> RenderPanel {
+	pub fn new(cursor_position: usize, scroll_position: usize) -> RenderPanel {
 		RenderPanel {
 			entries: Vec::new(),
+			cursor_position,
+			scroll_position
 		}
 	}
 
