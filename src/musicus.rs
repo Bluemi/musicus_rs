@@ -73,7 +73,7 @@ impl Musicus {
 	}
 
 	fn render_panel(&self, panel: &RenderPanel, x_pos: i32) {
-		for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).enumerate() {
+		for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).take(self.window.get_max_y() as usize).enumerate() {
 			if panel.cursor_position == y_pos+panel.scroll_position {
 				match e.color {
 					RenderColor::WHITE => self.window.color_set(SELECTED_COLOR),
