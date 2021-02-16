@@ -1,21 +1,25 @@
+use pancurses::{COLOR_WHITE, COLOR_BLACK, COLOR_BLUE};
+
 pub struct RenderObject {
 	pub panels: Vec<RenderPanel>,
 }
 
 pub struct RenderPanel {
 	pub entries: Vec<RenderEntry>,
-	pub cursor_position: usize,
 	pub scroll_position: usize,
 }
 
 pub struct RenderEntry {
 	pub text: String,
-	pub color: RenderColor,
+	pub foreground_color: RenderColor,
+	pub background_color: RenderColor,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum RenderColor {
+	BLACK,
 	WHITE,
-	BLUE
+	BLUE,
 }
 
 pub trait Renderable {
@@ -35,10 +39,9 @@ impl RenderObject {
 }
 
 impl RenderPanel {
-	pub fn new(cursor_position: usize, scroll_position: usize) -> RenderPanel {
+	pub fn new(scroll_position: usize) -> RenderPanel {
 		RenderPanel {
 			entries: Vec::new(),
-			cursor_position,
 			scroll_position
 		}
 	}
@@ -53,10 +56,21 @@ impl RenderPanel {
 }
 
 impl RenderEntry {
-	pub fn new(text: String, color: RenderColor) -> Self {
+	pub fn new(text: String, foreground_color: RenderColor, background_color: RenderColor) -> Self {
 		RenderEntry {
 			text,
-			color,
+			foreground_color,
+			background_color,
+		}
+	}
+}
+
+impl RenderColor {
+	pub fn to_curses_color(&self) -> i16 {
+		match self {
+			RenderColor::BLACK => COLOR_BLACK,
+			RenderColor::WHITE => COLOR_WHITE,
+			RenderColor::BLUE => COLOR_BLUE,
 		}
 	}
 }

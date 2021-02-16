@@ -1,19 +1,17 @@
 use crate::file_manager::FileManager;
 use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel};
-use pancurses::{Window, Input, COLOR_WHITE, COLOR_BLACK, COLOR_BLUE};
+use pancurses::{Window, Input};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::collections::HashMap;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
-
-const NORMAL_COLOR: i16 = 0;
-const SELECTED_COLOR: i16 = 1;
-const DIRECTORY_COLOR: i16 = 2;
-const SELECTED_DIRECTORY_COLOR: i16 = 3;
 
 pub struct Musicus {
 	file_manager: FileManager,
 	window: Window,
+	color_pairs: HashMap<(RenderColor, RenderColor), i16>,
+	color_pair_counter: i16,
 }
 
 impl Musicus {
@@ -22,7 +20,9 @@ impl Musicus {
 		Musicus::init_curses();
 		Musicus {
 			file_manager: FileManager::new(window.get_max_y() as usize),
-			window
+			window,
+			color_pairs: HashMap::new(),
+			color_pair_counter: 1,
 		}
 	}
 
@@ -30,10 +30,6 @@ impl Musicus {
 		pancurses::noecho();
 		pancurses::curs_set(0);
 		pancurses::start_color();
-		pancurses::init_pair(NORMAL_COLOR, COLOR_WHITE, COLOR_BLACK);
-		pancurses::init_pair(SELECTED_COLOR, COLOR_BLACK, COLOR_WHITE);
-		pancurses::init_pair(DIRECTORY_COLOR, COLOR_BLUE, COLOR_BLACK);
-		pancurses::init_pair(SELECTED_DIRECTORY_COLOR, COLOR_BLACK, COLOR_BLUE);
 	}
 
 	pub fn run(&mut self) {
@@ -58,13 +54,13 @@ impl Musicus {
 		pancurses::endwin();
 	}
 
-	fn render(&self, render_object: RenderObject) {
+	fn render(&mut self, render_object: RenderObject) {
 		self.window.clear();
 		self.render_panels(&render_object);
 		self.window.refresh();
 	}
 
-	fn render_panels(&self, render_object: &RenderObject) {
+	fn render_panels(&mut self, render_object: &RenderObject) {
 		let mut x_pos = (self.window.get_max_x() - (render_object.get_panels_size() as i32 + render_object.panels.len() as i32*FILE_BROWSER_OFFSET)).min(0);
 		for panel in render_object.panels.iter() {
 			self.render_panel(panel, x_pos);
@@ -72,21 +68,23 @@ impl Musicus {
 		}
 	}
 
-	fn render_panel(&self, panel: &RenderPanel, x_pos: i32) {
+	fn set_color(&mut self, foreground: RenderColor, background: RenderColor) {
+		if let Some(color) = self.color_pairs.get(&(foreground, background)) {
+			self.window.color_set(*color);
+		} else {
+			pancurses::init_pair(self.color_pair_counter, foreground.to_curses_color(), background.to_curses_color());
+			self.color_pairs.insert((foreground, background), self.color_pair_counter);
+			self.window.color_set(self.color_pair_counter);
+			self.color_pair_counter += 1;
+		}
+	}
+
+	fn render_panel(&mut self, panel: &RenderPanel, x_pos: i32) {
 		for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).take(self.window.get_max_y() as usize).enumerate() {
-			if panel.cursor_position == y_pos+panel.scroll_position {
-				match e.color {
-					RenderColor::WHITE => self.window.color_set(SELECTED_COLOR),
-					RenderColor::BLUE => self.window.color_set(SELECTED_DIRECTORY_COLOR),
-				};
-			} else {
-				match e.color {
-					RenderColor::WHITE => self.window.color_set(NORMAL_COLOR),
-					RenderColor::BLUE => self.window.color_set(DIRECTORY_COLOR),
-				};
-			}
+			self.set_color(e.foreground_color, e.background_color);
 			if (e.text.len() as i32) >= -x_pos {
 				let line = &e.text[(-x_pos).max(0) as usize..];
+				let line = format!("{: <width$}", line, width=panel.get_width());
 				self.window.mvaddstr(y_pos as i32, x_pos.max(0), line);
 			}
 		}

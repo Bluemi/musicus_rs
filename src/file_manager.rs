@@ -3,6 +3,7 @@ use std::env::current_dir;
 use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::collections::HashMap;
 use std::fs::DirEntry;
+use std::mem::swap;
 
 pub struct FileManager {
 	pub current_path: PathBuf,
@@ -97,12 +98,22 @@ impl FileManager {
 impl Renderable for FileManager {
 	fn get_render_object(&self) -> RenderObject {
 		let mut render_object = RenderObject::new();
-		for c in self.current_path.ancestors().collect::<Vec<&Path>>().iter().rev() {
+		let ancestors = self.current_path.ancestors().collect::<Vec<&Path>>();
+		for (ancestor_index, c) in ancestors.iter().rev().enumerate() {
 			let (cursor_position, scroll_position) = self.positions.get(&PathBuf::from(c)).unwrap_or(&(0, 0));
-			let mut panel = RenderPanel::new(*cursor_position, *scroll_position);
-			for entry in FileManager::get_dir_entries(c) {
-				let color = if entry.is_file { RenderColor::WHITE } else { RenderColor::BLUE };
-				panel.entries.push(RenderEntry::new(entry.filename, color));
+			let mut panel = RenderPanel::new(*scroll_position);
+			let dir_entries = FileManager::get_dir_entries(c);
+			for (entry_index, entry) in dir_entries.iter().enumerate() {
+				let mut foreground_color = if entry.is_file {
+					RenderColor::WHITE
+				} else {
+					RenderColor::BLUE
+				};
+				let mut background_color = RenderColor::BLACK;
+				if entry_index == *cursor_position && ancestor_index != ancestors.len()-1 {
+					swap(&mut foreground_color, &mut background_color);
+				}
+				panel.entries.push(RenderEntry::new(entry.filename.clone(), foreground_color, background_color));
 			}
 			render_object.panels.push(panel);
 		}
