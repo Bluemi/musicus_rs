@@ -84,7 +84,7 @@ impl Musicus {
 			self.set_color(e.foreground_color, e.background_color);
 			if (e.text.len() as i32) >= -x_pos {
 				let line = &e.text[(-x_pos).max(0) as usize..];
-				let line = format!("{: <width$}", line, width=panel.get_width());
+				let line = format!("{: <width$}", line, width=panel.get_width() + FILE_BROWSER_OFFSET as usize);
 				self.window.mvaddstr(y_pos as i32, x_pos.max(0), line);
 			}
 		}
