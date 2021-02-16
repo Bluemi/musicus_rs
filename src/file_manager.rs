@@ -38,13 +38,11 @@ impl FileManager {
 		let (cursor_position, _) = self.positions.get(&PathBuf::from(&self.current_path)).unwrap_or(&(0, 0));
 
 		if let Some(dir_entry) = FileManager::get_dir_entries(&self.current_path).iter().nth(*cursor_position) {
-			if !dir_entry.is_file {
-				self.current_path = dir_entry.path.clone();
-			}
+			self.current_path = dir_entry.path.clone();
 		}
 	}
 
-	pub fn move_up(&mut self) {
+	fn internal_move_up(&mut self) {
 		let (cursor_position, scroll_position) = self.positions.entry(PathBuf::from(&self.current_path)).or_insert((0, 0));
 		if *cursor_position > 0 {
 			*cursor_position -= 1;
@@ -54,13 +52,25 @@ impl FileManager {
 		}
 	}
 
-	pub fn move_down(&mut self) {
+	pub fn move_up(&mut self) {
+		self.move_left();
+		self.internal_move_up();
+		self.move_right();
+	}
+
+	fn internal_move_down(&mut self) {
 		let num_entries = self.get_current_num_entries();
 		let (cursor_position, scroll_position) = self.positions.entry(PathBuf::from(&self.current_path)).or_insert((0, 0));
 		if *cursor_position < num_entries-1 {
 			*cursor_position += 1;
 			*scroll_position = (*scroll_position as i32).max(*cursor_position as i32-self.num_rows as i32 + 1) as usize;
 		}
+	}
+
+	pub fn move_down(&mut self) {
+		self.move_left();
+		self.internal_move_down();
+		self.move_right();
 	}
 
 	fn get_current_num_entries(&self) -> usize {
