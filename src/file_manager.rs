@@ -99,10 +99,10 @@ impl Renderable for FileManager {
 	fn get_render_object(&self) -> RenderObject {
 		let mut render_object = RenderObject::new();
 		let ancestors = self.current_path.ancestors().collect::<Vec<&Path>>();
-		for (ancestor_index, c) in ancestors.iter().rev().enumerate() {
-			let (cursor_position, scroll_position) = self.positions.get(&PathBuf::from(c)).unwrap_or(&(0, 0));
+		for (ancestor_index, ancestor) in ancestors.iter().rev().enumerate() {
+			let (cursor_position, scroll_position) = self.positions.get(&PathBuf::from(ancestor)).unwrap_or(&(0, 0));
 			let mut panel = RenderPanel::new(*scroll_position);
-			let dir_entries = FileManager::get_dir_entries(c);
+			let dir_entries = FileManager::get_dir_entries(ancestor);
 			for (entry_index, entry) in dir_entries.iter().enumerate() {
 				let mut foreground_color = if entry.is_file {
 					RenderColor::WHITE
