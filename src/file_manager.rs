@@ -42,7 +42,7 @@ impl FileManager {
 		}
 	}
 
-	fn internal_move_up(&mut self) {
+	fn move_cursor_up(&mut self) {
 		let (cursor_position, scroll_position) = self.positions.entry(PathBuf::from(&self.current_path)).or_insert((0, 0));
 		if *cursor_position > 0 {
 			*cursor_position -= 1;
@@ -54,11 +54,11 @@ impl FileManager {
 
 	pub fn move_up(&mut self) {
 		self.move_left();
-		self.internal_move_up();
+		self.move_cursor_up();
 		self.move_right();
 	}
 
-	fn internal_move_down(&mut self) {
+	fn move_cursor_down(&mut self) {
 		let num_entries = self.get_current_num_entries();
 		let (cursor_position, scroll_position) = self.positions.entry(PathBuf::from(&self.current_path)).or_insert((0, 0));
 		if *cursor_position < num_entries-1 {
@@ -69,7 +69,7 @@ impl FileManager {
 
 	pub fn move_down(&mut self) {
 		self.move_left();
-		self.internal_move_down();
+		self.move_cursor_down();
 		self.move_right();
 	}
 
