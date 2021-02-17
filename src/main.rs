@@ -1,6 +1,7 @@
 mod musicus;
 mod file_manager;
 mod render;
+mod audio_backend;
 
 use crate::musicus::Musicus;
 

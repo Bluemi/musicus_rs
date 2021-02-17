@@ -1,3 +1,4 @@
+use crate::audio_backend::AudioBackend;
 use crate::file_manager::FileManager;
 use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel};
 use pancurses::{Window, Input};
@@ -6,8 +7,11 @@ use std::io::Write;
 use std::collections::HashMap;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
+const ESC_CHAR: char = 27 as char;
+const ENTER_CHAR: char = 10 as char;
 
 pub struct Musicus {
+	audio_backend: AudioBackend,
 	file_manager: FileManager,
 	window: Window,
 	color_pairs: HashMap<(RenderColor, RenderColor), i16>,
@@ -19,6 +23,7 @@ impl Musicus {
 		let window = pancurses::initscr();
 		Musicus::init_curses();
 		Musicus {
+			audio_backend: AudioBackend::new(),
 			file_manager: FileManager::new(window.get_max_y() as usize),
 			window,
 			color_pairs: HashMap::new(),
@@ -40,18 +45,23 @@ impl Musicus {
 			match self.window.getch().unwrap() {
 				Input::Character(c) => {
 					match c {
-						'q' => running = false,
+						'q' | ESC_CHAR => running = false,
+						ENTER_CHAR => self.play_filemanager_song(),
 						'h' => self.file_manager.move_left(),
 						'j' => self.file_manager.move_down(),
 						'k' => self.file_manager.move_up(),
 						'l' => self.file_manager.move_right(),
-						_ => {},
+						_ => log(&format!("got unknown char: {}", c as i32)),
 					}
 				}
 				_ => {}
 			}
 		}
 		pancurses::endwin();
+	}
+
+	fn play_filemanager_song(&mut self) {
+		self.audio_backend.play(&self.file_manager.current_path);
 	}
 
 	fn render(&mut self, render_object: RenderObject) {
