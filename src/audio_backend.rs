@@ -33,7 +33,6 @@ impl AudioBackend {
 				Ok(command) => self.handle_command(command),
 				Err(_) => break,
 			}
-
 		}
 	}
 

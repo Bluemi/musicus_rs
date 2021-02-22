@@ -7,6 +7,7 @@ use std::io::Write;
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
+use crate::playlists::PlaylistManager;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -15,15 +16,22 @@ const ENTER_CHAR: char = 10 as char;
 pub struct Musicus {
     command_sender: Sender<AudioCommand>,
 	file_manager: FileManager,
+	playlists: PlaylistManager,
 	window: Window,
 	color_pairs: HashMap<(RenderColor, RenderColor), i16>,
 	color_pair_counter: i16,
-	state: PlayState,
+	play_state: PlayState,
+	view_state: ViewState,
 }
 
 enum PlayState {
 	Playing,
 	Paused,
+}
+
+enum ViewState {
+	FileManager,
+	Playlists,
 }
 
 impl Musicus {
@@ -42,10 +50,12 @@ impl Musicus {
 		Musicus {
             command_sender,
 			file_manager: FileManager::new(window.get_max_y() as usize),
+			playlists: PlaylistManager::new(),
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
-			state: PlayState::Paused,
+			play_state: PlayState::Paused,
+			view_state: ViewState::FileManager,
 		}
 	}
 
@@ -58,7 +68,10 @@ impl Musicus {
 	pub fn run(&mut self) {
 		let mut running = true;
 		while running {
-			let render_object = self.file_manager.get_render_object();
+			let render_object = match self.view_state {
+				ViewState::FileManager => self.file_manager.get_render_object(),
+				ViewState::Playlists => self.playlists.get_render_object(),
+			};
 			self.render(render_object);
 			match self.window.getch().unwrap() {
 				Input::Character(c) => {
@@ -70,6 +83,8 @@ impl Musicus {
 						'k' => self.file_manager.move_up(),
 						'l' => self.file_manager.move_right(),
 						'c' => self.toggle_pause(),
+						'1' => self.view_state = ViewState::FileManager,
+						'2' => self.view_state = ViewState::Playlists,
 						_ => log(&format!("got unknown char: {}", c as i32)),
 					}
 				}
@@ -80,21 +95,21 @@ impl Musicus {
 	}
 
 	fn toggle_pause(&mut self) {
-		match self.state {
+		match self.play_state {
 			PlayState::Playing => {
 				self.command_sender.send(AudioCommand::Pause).unwrap();
-				self.state = PlayState::Paused;
+				self.play_state = PlayState::Paused;
 			}
 			PlayState::Paused => {
 				self.command_sender.send(AudioCommand::Unpause).unwrap();
-				self.state = PlayState::Playing;
+				self.play_state = PlayState::Playing;
 			}
 		}
 	}
 
 	fn play_filemanager_song(&mut self) {
 		self.command_sender.send(AudioCommand::Play(self.file_manager.current_path.clone())).unwrap();
-		self.state = PlayState::Playing;
+		self.play_state = PlayState::Playing;
 	}
 
 	fn render(&mut self, render_object: RenderObject) {
