@@ -1,33 +1,51 @@
-use crate::audio_backend::AudioBackend;
+use crate::audio_backend::{AudioBackend, AudioCommand};
 use crate::file_manager::FileManager;
 use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel};
 use pancurses::{Window, Input};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::collections::HashMap;
+use std::sync::mpsc::{channel, Sender};
+use std::thread;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
 const ENTER_CHAR: char = 10 as char;
 
 pub struct Musicus {
-	audio_backend: AudioBackend,
+    command_sender: Sender<AudioCommand>,
 	file_manager: FileManager,
 	window: Window,
 	color_pairs: HashMap<(RenderColor, RenderColor), i16>,
 	color_pair_counter: i16,
+	state: PlayState,
+}
+
+enum PlayState {
+	Playing,
+	Paused,
 }
 
 impl Musicus {
 	pub fn new() -> Musicus {
+        // setup curses
 		let window = pancurses::initscr();
 		Musicus::init_curses();
+
+		// setup audio backend
+		let (command_sender, command_receiver) = channel();
+
+		thread::spawn(move || {
+			let mut audio_backend = AudioBackend::new(command_receiver);
+			audio_backend.run();
+		});
 		Musicus {
-			audio_backend: AudioBackend::new(),
+            command_sender,
 			file_manager: FileManager::new(window.get_max_y() as usize),
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
+			state: PlayState::Paused,
 		}
 	}
 
@@ -51,6 +69,7 @@ impl Musicus {
 						'j' => self.file_manager.move_down(),
 						'k' => self.file_manager.move_up(),
 						'l' => self.file_manager.move_right(),
+						'c' => self.toggle_pause(),
 						_ => log(&format!("got unknown char: {}", c as i32)),
 					}
 				}
@@ -60,8 +79,22 @@ impl Musicus {
 		pancurses::endwin();
 	}
 
+	fn toggle_pause(&mut self) {
+		match self.state {
+			PlayState::Playing => {
+				self.command_sender.send(AudioCommand::Pause).unwrap();
+				self.state = PlayState::Paused;
+			}
+			PlayState::Paused => {
+				self.command_sender.send(AudioCommand::Unpause).unwrap();
+				self.state = PlayState::Playing;
+			}
+		}
+	}
+
 	fn play_filemanager_song(&mut self) {
-		self.audio_backend.play(&self.file_manager.current_path);
+		self.command_sender.send(AudioCommand::Play(self.file_manager.current_path.clone())).unwrap();
+		self.state = PlayState::Playing;
 	}
 
 	fn render(&mut self, render_object: RenderObject) {
