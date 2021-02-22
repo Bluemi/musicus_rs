@@ -31,10 +31,7 @@ impl AudioBackend {
 		loop {
 			match self.command_receiver.recv() {
 				Ok(command) => self.handle_command(command),
-				Err(e) => {
-					println!("failed to receive audio command: {}. Shutting down AudioBackend", e);
-					break;
-				},
+				Err(_) => break,
 			}
 
 		}
