@@ -5,10 +5,12 @@ use crate::musicus::log;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use serde::{Serialize, Deserialize};
+use crate::config::PlaylistManagerCache;
 
 pub struct PlaylistManager {
 	pub current_playlist: usize,
 	pub playlists: Vec<Playlist>,
+	pub view: PlaylistView,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -23,11 +25,18 @@ pub struct Song {
 	path: PathBuf,
 }
 
+#[derive(Copy, Clone, Serialize, Deserialize)]
+pub enum PlaylistView {
+	Overview,
+	Playlist,
+}
+
 impl PlaylistManager {
-	pub fn new(playlists: Vec<Playlist>) -> PlaylistManager {
+	pub fn new(playlists: Vec<Playlist>, cache: &PlaylistManagerCache) -> PlaylistManager {
 		PlaylistManager {
 			current_playlist: 0,
 			playlists,
+			view: cache.view
 		}
 	}
 
@@ -39,6 +48,14 @@ impl PlaylistManager {
 
 	fn get_current_playlist(&mut self) -> Option<&mut Playlist> {
 		self.playlists.get_mut(self.current_playlist)
+	}
+
+	pub fn move_left(&mut self) {
+
+	}
+
+	pub fn move_right(&mut self) {
+
 	}
 }
 

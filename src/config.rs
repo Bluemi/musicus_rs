@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use crate::file_utils::{create_dir, get_dir_entries};
-use crate::playlists::Playlist;
+use crate::playlists::{Playlist, PlaylistView};
 use serde::{Serialize, Deserialize};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
@@ -37,11 +37,17 @@ pub fn load_playlists() -> Vec<Playlist> {
 #[derive(Serialize, Deserialize)]
 pub struct Cache {
 	pub filemanager_cache: FileManagerCache,
+	pub playlist_manager_cache: PlaylistManagerCache,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct FileManagerCache {
 	pub current_directory: PathBuf,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PlaylistManagerCache {
+	pub view: PlaylistView,
 }
 
 impl Cache {
@@ -72,6 +78,9 @@ impl Cache {
 			filemanager_cache: FileManagerCache {
 				current_directory: current_dir().unwrap_or(PathBuf::new()),
 			},
+			playlist_manager_cache: PlaylistManagerCache {
+				view: PlaylistView::Overview,
+			}
 		}
 	}
 }

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use crate::playlists::{PlaylistManager, Song, Playlist};
-use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache};
+use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache, PlaylistManagerCache};
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -61,7 +61,7 @@ impl Musicus {
 		Musicus {
             command_sender,
 			file_manager: FileManager::new(window.get_max_y() as usize, &cache.filemanager_cache),
-			playlist_manager: PlaylistManager::new(playlists),
+			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache),
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
@@ -88,6 +88,9 @@ impl Musicus {
 		let cache = Cache {
 			filemanager_cache: FileManagerCache {
 				current_directory: self.file_manager.current_path.clone(),
+			},
+			playlist_manager_cache: PlaylistManagerCache {
+				view: self.playlist_manager.view,
 			}
 		};
 		cache.dump();
@@ -112,6 +115,8 @@ impl Musicus {
 						('j', ViewState::FileManager) => self.file_manager.move_down(),
 						('k', ViewState::FileManager) => self.file_manager.move_up(),
 						('l', ViewState::FileManager) => self.file_manager.move_right(),
+						('h', ViewState::Playlists) => self.playlist_manager.move_left(),
+						('l', ViewState::Playlists) => self.playlist_manager.move_right(),
 						('c', _) => self.toggle_pause(),
 						('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
 						('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
