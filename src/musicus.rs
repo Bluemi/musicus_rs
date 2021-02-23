@@ -9,6 +9,7 @@ use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use crate::playlists::{PlaylistManager, Song, Playlist};
 use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache, PlaylistManagerCache};
+use serde::{Serialize, Deserialize};
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -30,8 +31,8 @@ enum PlayState {
 	Paused,
 }
 
-#[derive(Copy, Clone)]
-enum ViewState {
+#[derive(Serialize, Deserialize, Copy, Clone)]
+pub enum ViewState {
 	FileManager,
 	Playlists,
 }
@@ -86,6 +87,7 @@ impl Musicus {
 
 		// dump cache
 		let cache = Cache {
+			view: self.view_state,
 			filemanager_cache: FileManagerCache {
 				current_directory: self.file_manager.current_path.clone(),
 			},

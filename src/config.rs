@@ -5,6 +5,7 @@ use serde::{Serialize, Deserialize};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use std::env::current_dir;
+use crate::musicus::ViewState;
 
 pub fn get_config_directory() -> PathBuf {
 	dirs::config_dir().unwrap().join("musicus")
@@ -36,6 +37,7 @@ pub fn load_playlists() -> Vec<Playlist> {
 
 #[derive(Serialize, Deserialize)]
 pub struct Cache {
+	pub view: ViewState,
 	pub filemanager_cache: FileManagerCache,
 	pub playlist_manager_cache: PlaylistManagerCache,
 }
@@ -56,7 +58,12 @@ impl Cache {
 		if cache_path.is_file() {
 			let file = File::open(cache_path).unwrap();
 			let reader = BufReader::new(file);
-			serde_json::from_reader(reader).unwrap()
+			if let Ok(cache) = serde_json::from_reader(reader) {
+				cache
+			} else {
+				// log("WARN: couldnt load cache");
+				Cache::default()
+			}
 		} else {
 			Cache::default()
 		}
@@ -75,6 +82,7 @@ impl Cache {
 
 	pub fn default() -> Cache {
 		Cache {
+			view: ViewState::FileManager,
 			filemanager_cache: FileManagerCache {
 				current_directory: current_dir().unwrap_or(PathBuf::new()),
 			},
