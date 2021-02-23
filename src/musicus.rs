@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use crate::playlists::{PlaylistManager, Song, Playlist};
-use crate::config::{load_playlists, init_config, get_playlist_directory};
+use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache};
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -41,6 +41,8 @@ impl Musicus {
 		// setup config
 		init_config();
 
+		let cache = Cache::load();
+
         // setup curses
 		let window = pancurses::initscr();
 		Musicus::init_curses();
@@ -58,7 +60,7 @@ impl Musicus {
 
 		Musicus {
             command_sender,
-			file_manager: FileManager::new(window.get_max_y() as usize),
+			file_manager: FileManager::new(window.get_max_y() as usize, &cache.filemanager_cache),
 			playlist_manager: PlaylistManager::new(playlists),
 			window,
 			color_pairs: HashMap::new(),
@@ -81,6 +83,14 @@ impl Musicus {
 			let playlist_path = playlists_path.join(playlist.name.to_lowercase().replace(" ", "_")).with_extension("json");
 			playlist.dump_to_file(&playlist_path);
 		}
+
+		// dump cache
+		let cache = Cache {
+			filemanager_cache: FileManagerCache {
+				current_directory: self.file_manager.current_path.clone(),
+			}
+		};
+		cache.dump();
 	}
 
 	pub fn run(&mut self) {
@@ -139,7 +149,7 @@ impl Musicus {
 
 	fn file_manager_new_playlist(&mut self) {
 		let songs = Song::songs_from_path(&self.file_manager.current_path);
-		let mut name = self.file_manager.current_path.file_name().unwrap().to_str().unwrap().replace(" ", "");
+		let name = self.file_manager.current_path.file_name().unwrap().to_str().unwrap().replace(" ", "");
 
 		let mut playlist = Playlist::new(name);
 		playlist.songs = songs;

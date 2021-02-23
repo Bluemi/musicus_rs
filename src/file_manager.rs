@@ -1,9 +1,9 @@
 use std::path::{PathBuf, Path};
-use std::env::current_dir;
 use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::collections::HashMap;
 use std::mem::swap;
 use crate::file_utils::get_dir_entries;
+use crate::config::FileManagerCache;
 
 pub struct FileManager {
 	pub current_path: PathBuf,
@@ -12,8 +12,8 @@ pub struct FileManager {
 }
 
 impl FileManager {
-	pub fn new(num_rows: usize) -> FileManager {
-		let current_path = current_dir().unwrap_or(PathBuf::new());
+	pub fn new(num_rows: usize, cache: &FileManagerCache) -> FileManager {
+		let current_path = cache.current_directory.clone();
 
 		let mut positions = HashMap::new();
 
