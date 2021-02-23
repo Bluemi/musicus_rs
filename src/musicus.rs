@@ -31,7 +31,7 @@ enum PlayState {
 	Paused,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum ViewState {
 	FileManager,
 	Playlists,
@@ -44,7 +44,7 @@ impl Musicus {
 
 		let cache = Cache::load();
 
-        // setup curses
+		// setup curses
 		let window = pancurses::initscr();
 		Musicus::init_curses();
 
@@ -67,7 +67,7 @@ impl Musicus {
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
 			play_state: PlayState::Paused,
-			view_state: ViewState::FileManager,
+			view_state: cache.view,
 		}
 	}
 

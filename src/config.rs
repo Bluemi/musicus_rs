@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use std::env::current_dir;
-use crate::musicus::ViewState;
+use crate::musicus::{ViewState, log};
 
 pub fn get_config_directory() -> PathBuf {
 	dirs::config_dir().unwrap().join("musicus")
@@ -61,7 +61,7 @@ impl Cache {
 			if let Ok(cache) = serde_json::from_reader(reader) {
 				cache
 			} else {
-				// log("WARN: couldnt load cache");
+				log("WARN: couldn\'t load cache");
 				Cache::default()
 			}
 		} else {
