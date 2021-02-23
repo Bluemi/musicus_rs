@@ -17,6 +17,7 @@ pub struct PlaylistManager {
 pub struct Playlist {
 	pub name: String,
 	pub songs: Vec<Song>,
+	pub cursor_position: usize,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -51,11 +52,45 @@ impl PlaylistManager {
 	}
 
 	pub fn move_left(&mut self) {
-
+		self.view = PlaylistView::Overview;
 	}
 
 	pub fn move_right(&mut self) {
+		self.view = PlaylistView::Playlist;
+	}
 
+	pub fn move_down(&mut self) {
+		match self.view {
+			PlaylistView::Overview => {
+				if self.current_playlist < self.playlists.len() - 1 {
+					self.current_playlist += 1;
+				}
+			}
+			PlaylistView::Playlist => {
+				if let Some(playlist) = self.get_current_playlist() {
+					if playlist.cursor_position < playlist.songs.len() - 1 {
+						playlist.cursor_position += 1;
+					}
+				}
+			}
+		}
+	}
+
+	pub fn move_up(&mut self) {
+		match self.view {
+			PlaylistView::Overview => {
+				if self.current_playlist > 0 {
+					self.current_playlist -= 1;
+				}
+			}
+			PlaylistView::Playlist => {
+				if let Some(playlist) = self.get_current_playlist() {
+					if playlist.cursor_position > 0 {
+						playlist.cursor_position -= 1;
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -65,16 +100,34 @@ impl Renderable for PlaylistManager {
 
 		// add overview panel
 		let mut overview_panel = RenderPanel::new(0);
-		for playlist in &self.playlists {
-			overview_panel.entries.push(RenderEntry::new(playlist.name.clone(), RenderColor::WHITE, RenderColor::BLACK));
+		for (index, playlist) in self.playlists.iter().enumerate() {
+			let (foreground_color, background_color) = if index == self.current_playlist {
+				if matches!(self.view, PlaylistView::Overview) {
+					(RenderColor::WHITE, RenderColor::BLUE)
+				} else {
+					(RenderColor::BLACK, RenderColor::WHITE)
+				}
+			} else {
+				(RenderColor::WHITE, RenderColor::BLACK)
+			};
+			overview_panel.entries.push(RenderEntry::new(playlist.name.clone(), foreground_color, background_color));
 		}
 		render_object.panels.push(overview_panel);
 
 		// add current playlist
 		if let Some(current_playlist) = self.playlists.get(self.current_playlist) {
 			let mut panel = RenderPanel::new(0);
-			for song in &current_playlist.songs {
-				panel.entries.push(RenderEntry::new(song.title.clone(), RenderColor::WHITE, RenderColor::BLACK));
+			for (index, song) in current_playlist.songs.iter().enumerate() {
+				let (foreground_color, background_color) = if index == current_playlist.cursor_position {
+					if matches!(self.view, PlaylistView::Playlist) {
+						(RenderColor::WHITE, RenderColor::BLUE)
+					} else {
+						(RenderColor::BLACK, RenderColor::WHITE)
+					}
+				} else {
+					(RenderColor::WHITE, RenderColor::BLACK)
+				};
+				panel.entries.push(RenderEntry::new(song.title.clone(), foreground_color, background_color));
 			}
 			render_object.panels.push(panel);
 		}
@@ -88,6 +141,7 @@ impl Playlist {
 		Playlist {
 			name,
 			songs: Vec::new(),
+			cursor_position: 0,
 		}
 	}
 

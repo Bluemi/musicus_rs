@@ -119,6 +119,8 @@ impl Musicus {
 						('l', ViewState::FileManager) => self.file_manager.move_right(),
 						('h', ViewState::Playlists) => self.playlist_manager.move_left(),
 						('l', ViewState::Playlists) => self.playlist_manager.move_right(),
+						('j', ViewState::Playlists) => self.playlist_manager.move_down(),
+						('k', ViewState::Playlists) => self.playlist_manager.move_up(),
 						('c', _) => self.toggle_pause(),
 						('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
 						('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
