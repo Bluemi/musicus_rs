@@ -1,10 +1,12 @@
 #![feature(or_patterns)]
+#![feature(destructuring_assignment)]
 
 mod musicus;
 mod file_manager;
 mod render;
 mod audio_backend;
 mod playlists;
+mod file_utils;
 
 use crate::musicus::Musicus;
 

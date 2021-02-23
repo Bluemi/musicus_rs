@@ -7,7 +7,7 @@ use std::io::Write;
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
-use crate::playlists::PlaylistManager;
+use crate::playlists::{PlaylistManager, Song};
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -78,7 +78,8 @@ impl Musicus {
 				Input::Character(c) => {
 					match (c, self.view_state) {
 						('q' | ESC_CHAR, _) => running = false,
-						(ENTER_CHAR, ViewState::FileManager) => self.play_filemanager_song(),
+						(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
+						('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
 						('h', ViewState::FileManager) => self.file_manager.move_left(),
 						('j', ViewState::FileManager) => self.file_manager.move_down(),
 						('k', ViewState::FileManager) => self.file_manager.move_up(),
@@ -108,9 +109,14 @@ impl Musicus {
 		}
 	}
 
-	fn play_filemanager_song(&mut self) {
+	fn filemanager_context_action(&mut self) {
 		self.command_sender.send(AudioCommand::Play(self.file_manager.current_path.clone())).unwrap();
 		self.play_state = PlayState::Playing;
+	}
+
+	fn file_manager_add_to_playlist(&mut self) {
+		let songs = Song::songs_from_path(&self.file_manager.current_path);
+		self.playlists.add_songs(songs);
 	}
 
 	fn render(&mut self, render_object: RenderObject) {
