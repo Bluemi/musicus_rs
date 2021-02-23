@@ -16,9 +16,12 @@ struct Song {
 
 impl PlaylistManager {
 	pub fn new() -> PlaylistManager {
+		let mut playlists = Vec::new();
+		playlists.push(Playlist::new("my_playlist".to_string()));
+		playlists.push(Playlist::new("my_playlist2".to_string()));
 		PlaylistManager {
 			current_playlist: 0,
-			playlists: Vec::new(),
+			playlists,
 		}
 	}
 }
@@ -42,6 +45,24 @@ impl Renderable for PlaylistManager {
 			}
 			render_object.panels.push(panel);
 		}
+
 		render_object
+	}
+}
+
+impl Playlist {
+	pub fn new(name: String) -> Playlist {
+		Playlist {
+			name,
+			songs: Vec::new(),
+		}
+	}
+}
+
+impl Song {
+	pub fn new(title: String) -> Song {
+		Song {
+			title,
+		}
 	}
 }

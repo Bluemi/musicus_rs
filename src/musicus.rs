@@ -29,6 +29,7 @@ enum PlayState {
 	Paused,
 }
 
+#[derive(Copy, Clone)]
 enum ViewState {
 	FileManager,
 	Playlists,
@@ -75,16 +76,16 @@ impl Musicus {
 			self.render(render_object);
 			match self.window.getch().unwrap() {
 				Input::Character(c) => {
-					match c {
-						'q' | ESC_CHAR => running = false,
-						ENTER_CHAR => self.play_filemanager_song(),
-						'h' => self.file_manager.move_left(),
-						'j' => self.file_manager.move_down(),
-						'k' => self.file_manager.move_up(),
-						'l' => self.file_manager.move_right(),
-						'c' => self.toggle_pause(),
-						'1' => self.view_state = ViewState::FileManager,
-						'2' => self.view_state = ViewState::Playlists,
+					match (c, self.view_state) {
+						('q' | ESC_CHAR, _) => running = false,
+						(ENTER_CHAR, ViewState::FileManager) => self.play_filemanager_song(),
+						('h', ViewState::FileManager) => self.file_manager.move_left(),
+						('j', ViewState::FileManager) => self.file_manager.move_down(),
+						('k', ViewState::FileManager) => self.file_manager.move_up(),
+						('l', ViewState::FileManager) => self.file_manager.move_right(),
+						('c', _) => self.toggle_pause(),
+						('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
+						('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
 						_ => log(&format!("got unknown char: {}", c as i32)),
 					}
 				}

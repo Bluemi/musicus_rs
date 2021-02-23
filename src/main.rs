@@ -1,3 +1,5 @@
+#![feature(or_patterns)]
+
 mod musicus;
 mod file_manager;
 mod render;
