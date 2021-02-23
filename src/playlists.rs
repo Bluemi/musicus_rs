@@ -2,27 +2,29 @@ use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderCo
 use std::path::{Path, PathBuf};
 use crate::file_utils::{get_dir_entries, DirectoryEntry, get_common_ends};
 use crate::musicus::log;
+use std::fs::{File, OpenOptions};
+use std::io::{BufReader, BufWriter};
+use serde::{Serialize, Deserialize};
 
 pub struct PlaylistManager {
-	current_playlist: usize,
-	playlists: Vec<Playlist>,
+	pub current_playlist: usize,
+	pub playlists: Vec<Playlist>,
 }
 
-struct Playlist {
-	name: String,
-	songs: Vec<Song>,
+#[derive(Serialize, Deserialize)]
+pub struct Playlist {
+	pub name: String,
+	pub songs: Vec<Song>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Song {
 	title: String,
 	path: PathBuf,
 }
 
 impl PlaylistManager {
-	pub fn new() -> PlaylistManager {
-		let mut playlists = Vec::new();
-		playlists.push(Playlist::new("my_playlist".to_string()));
-		playlists.push(Playlist::new("my_playlist2".to_string()));
+	pub fn new(playlists: Vec<Playlist>) -> PlaylistManager {
 		PlaylistManager {
 			current_playlist: 0,
 			playlists,
@@ -70,6 +72,23 @@ impl Playlist {
 			name,
 			songs: Vec::new(),
 		}
+	}
+
+	pub fn from_file(path: &Path) -> Playlist {
+		let file = File::open(path).unwrap();
+		let reader = BufReader::new(file);
+		serde_json::from_reader(reader).unwrap()
+	}
+
+	pub fn dump_to_file(&self, path: &Path) {
+		let file = OpenOptions::new()
+			.write(true)
+			.truncate(true)
+			.create(true)
+			.open(path)
+			.unwrap();
+		let writer = BufWriter::new(file);
+		serde_json::to_writer(writer, &self).unwrap();
 	}
 }
 

@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::fs::DirEntry;
+use std::fs;
 
 pub fn get_dir_entries(path: &Path) -> Vec<DirectoryEntry> {
 	let mut entries = Vec::new();
@@ -81,6 +82,12 @@ pub fn get_common_ends<'a, I>(strings: I) -> Option<(&'a str, &'a str)>
 		Some((begin, end))
 	} else {
 		None
+	}
+}
+
+pub fn create_dir(path: &Path) {
+	if !path.is_dir() {
+		fs::create_dir(path).unwrap();
 	}
 }
 

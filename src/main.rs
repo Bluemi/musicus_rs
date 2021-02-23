@@ -7,6 +7,7 @@ mod render;
 mod audio_backend;
 mod playlists;
 mod file_utils;
+mod config;
 
 use crate::musicus::Musicus;
 

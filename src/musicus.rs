@@ -7,7 +7,8 @@ use std::io::Write;
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
-use crate::playlists::{PlaylistManager, Song};
+use crate::playlists::{PlaylistManager, Song, Playlist};
+use crate::config::{load_playlists, init_config, get_playlist_directory};
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -16,7 +17,7 @@ const ENTER_CHAR: char = 10 as char;
 pub struct Musicus {
     command_sender: Sender<AudioCommand>,
 	file_manager: FileManager,
-	playlists: PlaylistManager,
+	playlist_manager: PlaylistManager,
 	window: Window,
 	color_pairs: HashMap<(RenderColor, RenderColor), i16>,
 	color_pair_counter: i16,
@@ -37,6 +38,9 @@ enum ViewState {
 
 impl Musicus {
 	pub fn new() -> Musicus {
+		// setup config
+		init_config();
+
         // setup curses
 		let window = pancurses::initscr();
 		Musicus::init_curses();
@@ -48,10 +52,14 @@ impl Musicus {
 			let mut audio_backend = AudioBackend::new(command_receiver);
 			audio_backend.run();
 		});
+
+		// load playlists
+		let playlists = load_playlists();
+
 		Musicus {
             command_sender,
 			file_manager: FileManager::new(window.get_max_y() as usize),
-			playlists: PlaylistManager::new(),
+			playlist_manager: PlaylistManager::new(playlists),
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
@@ -66,12 +74,21 @@ impl Musicus {
 		pancurses::start_color();
 	}
 
+	pub fn shutdown(&mut self) {
+		pancurses::endwin();
+		let playlists_path = get_playlist_directory();
+		for playlist in &self.playlist_manager.playlists {
+			let playlist_path = playlists_path.join(playlist.name.to_lowercase().replace(" ", "_")).with_extension("json");
+			playlist.dump_to_file(&playlist_path);
+		}
+	}
+
 	pub fn run(&mut self) {
 		let mut running = true;
 		while running {
 			let render_object = match self.view_state {
 				ViewState::FileManager => self.file_manager.get_render_object(),
-				ViewState::Playlists => self.playlists.get_render_object(),
+				ViewState::Playlists => self.playlist_manager.get_render_object(),
 			};
 			self.render(render_object);
 			match self.window.getch().unwrap() {
@@ -80,6 +97,7 @@ impl Musicus {
 						('q' | ESC_CHAR, _) => running = false,
 						(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
 						('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
+						('n', ViewState::FileManager) => self.file_manager_new_playlist(),
 						('h', ViewState::FileManager) => self.file_manager.move_left(),
 						('j', ViewState::FileManager) => self.file_manager.move_down(),
 						('k', ViewState::FileManager) => self.file_manager.move_up(),
@@ -93,7 +111,7 @@ impl Musicus {
 				_ => {}
 			}
 		}
-		pancurses::endwin();
+		self.shutdown();
 	}
 
 	fn toggle_pause(&mut self) {
@@ -116,7 +134,16 @@ impl Musicus {
 
 	fn file_manager_add_to_playlist(&mut self) {
 		let songs = Song::songs_from_path(&self.file_manager.current_path);
-		self.playlists.add_songs(songs);
+		self.playlist_manager.add_songs(songs);
+	}
+
+	fn file_manager_new_playlist(&mut self) {
+		let songs = Song::songs_from_path(&self.file_manager.current_path);
+		let mut name = self.file_manager.current_path.file_name().unwrap().to_str().unwrap().replace(" ", "");
+
+		let mut playlist = Playlist::new(name);
+		playlist.songs = songs;
+		self.playlist_manager.playlists.push(playlist);
 	}
 
 	fn render(&mut self, render_object: RenderObject) {
