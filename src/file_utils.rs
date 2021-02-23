@@ -28,7 +28,6 @@ impl DirectoryEntry {
 	pub fn is_song_file(&self) -> bool {
 		self.is_file && (self.filename.ends_with(".wav") || self.filename.ends_with(".mp3") || self.filename.ends_with(".ogg"))
 	}
-
 }
 
 impl From<DirEntry> for DirectoryEntry {
