@@ -48,7 +48,7 @@ impl Musicus {
 
 		// setup curses
 		let window = pancurses::initscr();
-		Musicus::init_curses();
+		Musicus::init_curses(&window);
 
 		// setup audio backend
 		let (command_sender, command_receiver) = unbounded();
@@ -76,10 +76,11 @@ impl Musicus {
 		}
 	}
 
-	pub fn init_curses() {
+	pub fn init_curses(window: &Window) {
 		pancurses::noecho();
 		pancurses::curs_set(0);
 		pancurses::start_color();
+		window.nodelay(true);
 	}
 
 	pub fn shutdown(&mut self) {
@@ -111,29 +112,31 @@ impl Musicus {
 				ViewState::Playlists => self.playlist_manager.get_render_object(),
 			};
 			self.render(render_object);
-			match self.window.getch().unwrap() {
-				Input::Character(c) => {
-					match (c, self.view_state) {
-						('q' | ESC_CHAR, _) => running = false,
-						(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
-						('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
-						('n', ViewState::FileManager) => self.file_manager_new_playlist(),
-						('h', ViewState::FileManager) => self.file_manager.move_left(),
-						('j', ViewState::FileManager) => self.file_manager.move_down(),
-						('k', ViewState::FileManager) => self.file_manager.move_up(),
-						('l', ViewState::FileManager) => self.file_manager.move_right(),
-						(ENTER_CHAR, ViewState::Playlists) => self.playlist_manager_context_action(),
-						('h', ViewState::Playlists) => self.playlist_manager.move_left(),
-						('l', ViewState::Playlists) => self.playlist_manager.move_right(),
-						('j', ViewState::Playlists) => self.playlist_manager.move_down(),
-						('k', ViewState::Playlists) => self.playlist_manager.move_up(),
-						('c', _) => self.toggle_pause(),
-						('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
-						('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
-						_ => log(&format!("got unknown char: {}", c as i32)),
+            if let Some(input) = self.window.getch() {
+				match input {
+					Input::Character(c) => {
+						match (c, self.view_state) {
+							('q' | ESC_CHAR, _) => running = false,
+							(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
+							('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
+							('n', ViewState::FileManager) => self.file_manager_new_playlist(),
+							('h', ViewState::FileManager) => self.file_manager.move_left(),
+							('j', ViewState::FileManager) => self.file_manager.move_down(),
+							('k', ViewState::FileManager) => self.file_manager.move_up(),
+							('l', ViewState::FileManager) => self.file_manager.move_right(),
+							(ENTER_CHAR, ViewState::Playlists) => self.playlist_manager_context_action(),
+							('h', ViewState::Playlists) => self.playlist_manager.move_left(),
+							('l', ViewState::Playlists) => self.playlist_manager.move_right(),
+							('j', ViewState::Playlists) => self.playlist_manager.move_down(),
+							('k', ViewState::Playlists) => self.playlist_manager.move_up(),
+							('c', _) => self.toggle_pause(),
+							('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
+							('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
+							_ => log(&format!("got unknown char: {}", c as i32)),
+						}
 					}
+					_ => {}
 				}
-				_ => {}
 			}
 			for info in self.info_receiver.try_iter() {
 				// TODO
@@ -150,6 +153,7 @@ impl Musicus {
 					AudioInfo::FailedOpen(_) => {}
 				}
 			}
+			thread::sleep(Duration::from_millis(100));
 		}
 		self.shutdown();
 	}
