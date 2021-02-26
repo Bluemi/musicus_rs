@@ -77,7 +77,7 @@ impl Cache {
 			.open(get_cache_path())
 			.unwrap();
 		let writer = BufWriter::new(file);
-		serde_json::to_writer(writer, &self).unwrap();
+		serde_json::to_writer_pretty(writer, &self).unwrap();
 	}
 
 	pub fn default() -> Cache {
