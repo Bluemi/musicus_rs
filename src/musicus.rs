@@ -117,6 +117,7 @@ impl Musicus {
 						('j', ViewState::FileManager) => self.file_manager.move_down(),
 						('k', ViewState::FileManager) => self.file_manager.move_up(),
 						('l', ViewState::FileManager) => self.file_manager.move_right(),
+						(ENTER_CHAR, ViewState::Playlists) => self.playlist_manager_context_action(),
 						('h', ViewState::Playlists) => self.playlist_manager.move_left(),
 						('l', ViewState::Playlists) => self.playlist_manager.move_right(),
 						('j', ViewState::Playlists) => self.playlist_manager.move_down(),
@@ -149,6 +150,12 @@ impl Musicus {
 	fn filemanager_context_action(&mut self) {
 		self.command_sender.send(AudioCommand::Play(self.file_manager.current_path.clone())).unwrap();
 		self.play_state = PlayState::Playing;
+	}
+
+	fn playlist_manager_context_action(&mut self) {
+        if let Some(song) = self.playlist_manager.get_current_song() {
+			self.command_sender.send(AudioCommand::Play(song.path.clone())).unwrap();
+		}
 	}
 
 	fn file_manager_add_to_playlist(&mut self) {

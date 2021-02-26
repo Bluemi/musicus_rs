@@ -24,8 +24,8 @@ pub struct Playlist {
 
 #[derive(Serialize, Deserialize)]
 pub struct Song {
-	title: String,
-	path: PathBuf,
+	pub title: String,
+	pub path: PathBuf,
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
@@ -50,8 +50,15 @@ impl PlaylistManager {
 		}
 	}
 
-	fn get_current_playlist(&mut self) -> Option<&mut Playlist> {
+	pub fn get_current_playlist(&mut self) -> Option<&mut Playlist> {
 		self.playlists.get_mut(self.current_playlist)
+	}
+
+	pub fn get_current_song(&mut self) -> Option<&mut Song> {
+		if let Some(current_playlist) = self.get_current_playlist() {
+			return current_playlist.songs.get_mut(current_playlist.cursor_position);
+		}
+		None
 	}
 
 	pub fn move_left(&mut self) {
