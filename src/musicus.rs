@@ -5,11 +5,12 @@ use pancurses::{Window, Input};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::collections::HashMap;
-use crossbeam::{unbounded, Sender, Receiver, TryRecvError};
+use crossbeam::{unbounded, Sender, Receiver};
 use std::thread;
 use crate::playlists::{PlaylistManager, Song, Playlist};
 use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache, PlaylistManagerCache};
 use serde::{Serialize, Deserialize};
+use std::time::Duration;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -134,26 +135,19 @@ impl Musicus {
 				}
 				_ => {}
 			}
-			loop {
-				match self.info_receiver.try_recv() {
-					Ok(info) => {
-						// TODO
-						match info {
-							AudioInfo::Playing(_, _) => {}
-							AudioInfo::DurationLeft(_, _) => {}
-							AudioInfo::FailedOpen(_) => {}
-						}
-					}
-					Err(e) => {
-                        match e {
-							TryRecvError::Empty => {
-								break;
-							}
-							TryRecvError::Disconnected => {
-								log(&format!("failed to recv info! {:?}", e));
+			for info in self.info_receiver.try_iter() {
+				// TODO
+				match info {
+					AudioInfo::Playing(_, _) => {}
+					AudioInfo::DurationLeft(_, duration) => {
+						if duration < Duration::new(2, 0) {
+							if let Some(song) = self.playlist_manager.get_current_song() {
+								self.command_sender.send(AudioCommand::Queue(song.path.clone())).unwrap();
+								log(&format!("queuing next song\n"));
 							}
 						}
 					}
+					AudioInfo::FailedOpen(_) => {}
 				}
 			}
 		}

@@ -17,6 +17,7 @@ pub struct AudioBackend {
 
 pub enum AudioCommand {
 	Play(PathBuf),
+	Queue(PathBuf),
 	Pause,
     Unpause,
 }
@@ -51,6 +52,7 @@ impl AudioBackend {
 	fn handle_command(&mut self, command: AudioCommand) {
 		match command {
 			AudioCommand::Play(path) => self.play(&path),
+			AudioCommand::Queue(path) => self.queue(&path),
 			AudioCommand::Pause => self.pause(),
 			AudioCommand::Unpause => self.unpause(),
 		}
@@ -61,10 +63,15 @@ impl AudioBackend {
 			self.sink.stop();
 			self.sink = rodio::Sink::try_new(&self.stream_handle).unwrap();
 		}
-        match File::open(path) {
+		self.queue(path);
+		self.sink.play();
+	}
+
+	fn queue(&mut self, path: &Path) {
+		match File::open(path) {
 			Ok(file) => {
 				if let Ok(source) = rodio::Decoder::new(BufReader::new(file)) {
-                    let info_sender = self.info_sender.clone();
+					let info_sender = self.info_sender.clone();
 					let path_buf = path.to_path_buf();
 					self.info_sender.send(AudioInfo::Playing(path.to_path_buf(), source.total_duration().unwrap())).unwrap();
 					let source = source.periodic_access(
@@ -78,7 +85,6 @@ impl AudioBackend {
 			}
 			Err(_) => {}
 		}
-		self.sink.play();
 	}
 
 	fn pause(&mut self) {
