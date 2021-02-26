@@ -15,6 +15,7 @@ use std::time::Duration;
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
 const ENTER_CHAR: char = 10 as char;
+const CURSES_TIMEOUT: i32 = 200;
 
 pub struct Musicus {
     command_sender: Sender<AudioCommand>,
@@ -80,7 +81,7 @@ impl Musicus {
 		pancurses::noecho();
 		pancurses::curs_set(0);
 		pancurses::start_color();
-		window.timeout(20);
+		window.timeout(CURSES_TIMEOUT);
 	}
 
 	pub fn shutdown(&mut self) {
@@ -106,12 +107,12 @@ impl Musicus {
 
 	pub fn run(&mut self) {
 		let mut running = true;
-		let mut got_input = true;
+		self.render();
 		while running {
+			let got_input = self.handle_input(&mut running);
 			if got_input {
 				self.render();
 			}
-			got_input = self.handle_input(&mut running);
 			self.handle_audio_backend();
 		}
 		self.shutdown();
@@ -137,39 +138,34 @@ impl Musicus {
 
 	fn handle_input(&mut self, running: &mut bool) -> bool {
 		let mut got_valid_input = false;
-		let mut got_input = true;
-		while got_input {
-			if let Some(input) = self.window.getch() {
-				match input {
-					Input::Character(c) => {
-						got_valid_input = true;
-						match (c, self.view_state) {
-							('q' | ESC_CHAR, _) => *running = false,
-							(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
-							('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
-							('n', ViewState::FileManager) => self.file_manager_new_playlist(),
-							('h', ViewState::FileManager) => self.file_manager.move_left(),
-							('j', ViewState::FileManager) => self.file_manager.move_down(),
-							('k', ViewState::FileManager) => self.file_manager.move_up(),
-							('l', ViewState::FileManager) => self.file_manager.move_right(),
-							(ENTER_CHAR, ViewState::Playlists) => self.playlist_manager_context_action(),
-							('h', ViewState::Playlists) => self.playlist_manager.move_left(),
-							('l', ViewState::Playlists) => self.playlist_manager.move_right(),
-							('j', ViewState::Playlists) => self.playlist_manager.move_down(),
-							('k', ViewState::Playlists) => self.playlist_manager.move_up(),
-							('c', _) => self.toggle_pause(),
-							('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
-							('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
-							_ => {
-								got_valid_input = false;
-								log(&format!("got unknown char: {}", c as i32));
-							},
-						}
+		if let Some(input) = self.window.getch() {
+			match input {
+				Input::Character(c) => {
+					got_valid_input = true;
+					match (c, self.view_state) {
+						('q' | ESC_CHAR, _) => *running = false,
+						(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
+						('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
+						('n', ViewState::FileManager) => self.file_manager_new_playlist(),
+						('h', ViewState::FileManager) => self.file_manager.move_left(),
+						('j', ViewState::FileManager) => self.file_manager.move_down(),
+						('k', ViewState::FileManager) => self.file_manager.move_up(),
+						('l', ViewState::FileManager) => self.file_manager.move_right(),
+						(ENTER_CHAR, ViewState::Playlists) => self.playlist_manager_context_action(),
+						('h', ViewState::Playlists) => self.playlist_manager.move_left(),
+						('l', ViewState::Playlists) => self.playlist_manager.move_right(),
+						('j', ViewState::Playlists) => self.playlist_manager.move_down(),
+						('k', ViewState::Playlists) => self.playlist_manager.move_up(),
+						('c', _) => self.toggle_pause(),
+						('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
+						('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
+						_ => {
+							got_valid_input = false;
+							log(&format!("got unknown char: {}", c as i32));
+						},
 					}
-					_ => {},
 				}
-			} else {
-				got_input = false;
+				_ => {},
 			}
 		}
 		got_valid_input
