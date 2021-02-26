@@ -11,6 +11,7 @@ pub struct PlaylistManager {
 	pub current_playlist: usize,
 	pub playlists: Vec<Playlist>,
 	pub view: PlaylistView,
+	pub num_rows: usize,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -18,6 +19,7 @@ pub struct Playlist {
 	pub name: String,
 	pub songs: Vec<Song>,
 	pub cursor_position: usize,
+	pub scroll_position: usize,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -33,11 +35,12 @@ pub enum PlaylistView {
 }
 
 impl PlaylistManager {
-	pub fn new(playlists: Vec<Playlist>, cache: &PlaylistManagerCache) -> PlaylistManager {
+	pub fn new(playlists: Vec<Playlist>, cache: &PlaylistManagerCache, num_rows: usize) -> PlaylistManager {
 		PlaylistManager {
 			current_playlist: 0,
 			playlists,
-			view: cache.view
+			view: cache.view,
+			num_rows,
 		}
 	}
 
@@ -60,6 +63,7 @@ impl PlaylistManager {
 	}
 
 	pub fn move_down(&mut self) {
+        let num_rows = self.num_rows as i32;
 		match self.view {
 			PlaylistView::Overview => {
 				if self.current_playlist < self.playlists.len() - 1 {
@@ -70,6 +74,7 @@ impl PlaylistManager {
 				if let Some(playlist) = self.get_current_playlist() {
 					if playlist.cursor_position < playlist.songs.len() - 1 {
 						playlist.cursor_position += 1;
+						playlist.scroll_position = (playlist.scroll_position as i32).max(playlist.cursor_position as i32-num_rows + 1) as usize;
 					}
 				}
 			}
@@ -87,6 +92,9 @@ impl PlaylistManager {
 				if let Some(playlist) = self.get_current_playlist() {
 					if playlist.cursor_position > 0 {
 						playlist.cursor_position -= 1;
+						if playlist.scroll_position > playlist.cursor_position {
+							playlist.scroll_position = playlist.cursor_position;
+						}
 					}
 				}
 			}
@@ -128,6 +136,7 @@ impl Renderable for PlaylistManager {
 					(RenderColor::WHITE, RenderColor::BLACK)
 				};
 				panel.entries.push(RenderEntry::new(song.title.clone(), foreground_color, background_color));
+                panel.scroll_position = current_playlist.scroll_position;
 			}
 			render_object.panels.push(panel);
 		}
@@ -142,6 +151,7 @@ impl Playlist {
 			name,
 			songs: Vec::new(),
 			cursor_position: 0,
+			scroll_position: 0,
 		}
 	}
 
