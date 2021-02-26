@@ -1,11 +1,11 @@
-use crate::audio_backend::{AudioBackend, AudioCommand};
+use crate::audio_backend::{AudioBackend, AudioCommand, AudioInfo};
 use crate::file_manager::FileManager;
 use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel};
 use pancurses::{Window, Input};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::collections::HashMap;
-use std::sync::mpsc::{channel, Sender};
+use crossbeam::{unbounded, Sender, Receiver, TryRecvError};
 use std::thread;
 use crate::playlists::{PlaylistManager, Song, Playlist};
 use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache, PlaylistManagerCache};
@@ -17,6 +17,7 @@ const ENTER_CHAR: char = 10 as char;
 
 pub struct Musicus {
     command_sender: Sender<AudioCommand>,
+	info_receiver: Receiver<AudioInfo>,
 	file_manager: FileManager,
 	playlist_manager: PlaylistManager,
 	window: Window,
@@ -49,10 +50,12 @@ impl Musicus {
 		Musicus::init_curses();
 
 		// setup audio backend
-		let (command_sender, command_receiver) = channel();
+		let (command_sender, command_receiver) = unbounded();
+        let (info_sender, info_receiver) = unbounded();
+
 
 		thread::spawn(move || {
-			let mut audio_backend = AudioBackend::new(command_receiver);
+			let mut audio_backend = AudioBackend::new(command_receiver, info_sender);
 			audio_backend.run();
 		});
 
@@ -61,6 +64,7 @@ impl Musicus {
 
 		Musicus {
             command_sender,
+            info_receiver,
 			file_manager: FileManager::new(window.get_max_y() as usize, &cache.filemanager_cache),
 			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache, window.get_max_y() as usize),
 			window,
@@ -129,6 +133,28 @@ impl Musicus {
 					}
 				}
 				_ => {}
+			}
+			loop {
+				match self.info_receiver.try_recv() {
+					Ok(info) => {
+						// TODO
+						match info {
+							AudioInfo::Playing(_, _) => {}
+							AudioInfo::DurationLeft(_, _) => {}
+							AudioInfo::FailedOpen(_) => {}
+						}
+					}
+					Err(e) => {
+                        match e {
+							TryRecvError::Empty => {
+								break;
+							}
+							TryRecvError::Disconnected => {
+								log(&format!("failed to recv info! {:?}", e));
+							}
+						}
+					}
+				}
 			}
 		}
 		self.shutdown();
