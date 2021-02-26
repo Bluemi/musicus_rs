@@ -106,17 +106,46 @@ impl Musicus {
 
 	pub fn run(&mut self) {
 		let mut running = true;
+		let mut got_input = true;
 		while running {
-			let render_object = match self.view_state {
-				ViewState::FileManager => self.file_manager.get_render_object(),
-				ViewState::Playlists => self.playlist_manager.get_render_object(),
-			};
-			self.render(render_object);
-            if let Some(input) = self.window.getch() {
+			if got_input {
+				self.render();
+			}
+			got_input = self.handle_input(&mut running);
+			self.handle_audio_backend();
+			thread::sleep(Duration::from_millis(24));
+		}
+		self.shutdown();
+	}
+
+	fn handle_audio_backend(&mut self) {
+		for info in self.info_receiver.try_iter() {
+			// TODO
+			match info {
+				AudioInfo::Playing(_, _) => {}
+				AudioInfo::DurationLeft(_, duration) => {
+					if duration < Duration::new(2, 0) {
+						if let Some(song) = self.playlist_manager.get_current_song() {
+							self.command_sender.send(AudioCommand::Queue(song.path.clone())).unwrap();
+							log(&format!("queuing next song\n"));
+						}
+					}
+				}
+				AudioInfo::FailedOpen(_) => {}
+			}
+		}
+	}
+
+	fn handle_input(&mut self, running: &mut bool) -> bool {
+		let mut got_input = true;
+		let mut got_valid_input = false;
+		while got_input {
+			if let Some(input) = self.window.getch() {
+				got_valid_input = true;
 				match input {
 					Input::Character(c) => {
 						match (c, self.view_state) {
-							('q' | ESC_CHAR, _) => running = false,
+							('q' | ESC_CHAR, _) => *running = false,
 							(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
 							('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
 							('n', ViewState::FileManager) => self.file_manager_new_playlist(),
@@ -132,30 +161,19 @@ impl Musicus {
 							('c', _) => self.toggle_pause(),
 							('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
 							('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
-							_ => log(&format!("got unknown char: {}", c as i32)),
+							_ => {
+								got_valid_input = true;
+								log(&format!("got unknown char: {}", c as i32));
+							},
 						}
 					}
-					_ => {}
+					_ => got_input = false,
 				}
+			} else {
+				got_input = false;
 			}
-			for info in self.info_receiver.try_iter() {
-				// TODO
-				match info {
-					AudioInfo::Playing(_, _) => {}
-					AudioInfo::DurationLeft(_, duration) => {
-						if duration < Duration::new(2, 0) {
-							if let Some(song) = self.playlist_manager.get_current_song() {
-								self.command_sender.send(AudioCommand::Queue(song.path.clone())).unwrap();
-								log(&format!("queuing next song\n"));
-							}
-						}
-					}
-					AudioInfo::FailedOpen(_) => {}
-				}
-			}
-			thread::sleep(Duration::from_millis(100));
 		}
-		self.shutdown();
+		got_valid_input
 	}
 
 	fn toggle_pause(&mut self) {
@@ -196,7 +214,11 @@ impl Musicus {
 		self.playlist_manager.playlists.push(playlist);
 	}
 
-	fn render(&mut self, render_object: RenderObject) {
+	fn render(&mut self) {
+		let render_object = match self.view_state {
+			ViewState::FileManager => self.file_manager.get_render_object(),
+			ViewState::Playlists => self.playlist_manager.get_render_object(),
+		};
 		self.window.clear();
 		self.render_panels(&render_object);
 		self.window.refresh();
