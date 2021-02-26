@@ -22,7 +22,7 @@ pub enum AudioCommand {
 }
 
 pub enum AudioInfo {
-	Playing(PathBuf, Duration),
+	Playing(PathBuf, Duration), // current song, left duration
 	DurationLeft(PathBuf, Duration),
 	FailedOpen(PathBuf),
 }
