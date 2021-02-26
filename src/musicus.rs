@@ -48,7 +48,7 @@ impl Musicus {
 
 		// setup curses
 		let window = pancurses::initscr();
-		Musicus::init_curses(&window);
+		Musicus::init_curses();
 
 		// setup audio backend
 		let (command_sender, command_receiver) = unbounded();
@@ -76,11 +76,10 @@ impl Musicus {
 		}
 	}
 
-	pub fn init_curses(window: &Window) {
+	pub fn init_curses() {
 		pancurses::noecho();
 		pancurses::curs_set(0);
 		pancurses::start_color();
-		window.nodelay(true);
 	}
 
 	pub fn shutdown(&mut self) {
@@ -153,7 +152,6 @@ impl Musicus {
 					AudioInfo::FailedOpen(_) => {}
 				}
 			}
-			thread::sleep(Duration::from_millis(100));
 		}
 		self.shutdown();
 	}
