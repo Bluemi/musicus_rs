@@ -80,7 +80,7 @@ impl Musicus {
 		pancurses::noecho();
 		pancurses::curs_set(0);
 		pancurses::start_color();
-		window.nodelay(true);
+		window.timeout(20);
 	}
 
 	pub fn shutdown(&mut self) {
@@ -113,7 +113,6 @@ impl Musicus {
 			}
 			got_input = self.handle_input(&mut running);
 			self.handle_audio_backend();
-			thread::sleep(Duration::from_millis(24));
 		}
 		self.shutdown();
 	}
@@ -137,13 +136,13 @@ impl Musicus {
 	}
 
 	fn handle_input(&mut self, running: &mut bool) -> bool {
-		let mut got_input = true;
 		let mut got_valid_input = false;
+		let mut got_input = true;
 		while got_input {
 			if let Some(input) = self.window.getch() {
-				got_valid_input = true;
 				match input {
 					Input::Character(c) => {
+						got_valid_input = true;
 						match (c, self.view_state) {
 							('q' | ESC_CHAR, _) => *running = false,
 							(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
@@ -162,12 +161,12 @@ impl Musicus {
 							('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
 							('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
 							_ => {
-								got_valid_input = true;
+								got_valid_input = false;
 								log(&format!("got unknown char: {}", c as i32));
 							},
 						}
 					}
-					_ => got_input = false,
+					_ => {},
 				}
 			} else {
 				got_input = false;
