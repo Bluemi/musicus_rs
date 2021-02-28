@@ -91,6 +91,12 @@ pub fn create_dir(path: &Path) {
 	}
 }
 
+pub fn normalize_dir(path: &mut PathBuf) {
+	while !path.is_dir() {
+		path.pop();
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

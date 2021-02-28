@@ -2,7 +2,7 @@ use std::path::{PathBuf, Path};
 use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::collections::HashMap;
 use std::mem::swap;
-use crate::file_utils::get_dir_entries;
+use crate::file_utils::{get_dir_entries, normalize_dir};
 use crate::config::FileManagerCache;
 
 pub struct FileManager {
@@ -13,7 +13,9 @@ pub struct FileManager {
 
 impl FileManager {
 	pub fn new(num_rows: usize, cache: &FileManagerCache) -> FileManager {
-		let current_path = cache.current_directory.clone();
+		let mut current_path = cache.current_directory.clone();
+
+		normalize_dir(&mut current_path);
 
 		let mut positions = HashMap::new();
 
