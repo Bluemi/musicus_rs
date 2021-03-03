@@ -136,6 +136,7 @@ impl Musicus {
 								*song_index += 1;
 								if let Some(song) = self.playlist_manager.get_song(*playlist_index, *song_index) {
 									self.command_sender.send(AudioCommand::Queue(song.path.clone())).unwrap();
+									log(&format!("queuing song \"{}\"\n", song.title));
 								}
 							}
 							_ => {}

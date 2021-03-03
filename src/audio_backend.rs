@@ -4,7 +4,6 @@ use std::io::BufReader;
 use rodio::Source;
 use std::time::Duration;
 use crossbeam::{Sender, Receiver};
-use crate::musicus::log;
 
 const UPDATE_DURATION: Duration = Duration::new(1, 0);
 
@@ -69,7 +68,6 @@ impl AudioBackend {
 	}
 
 	fn queue(&mut self, path: &Path) {
-		log(&format!("queue"));
 		match File::open(path) {
 			Ok(file) => {
 				if let Ok(source) = rodio::Decoder::new(BufReader::new(file)) {

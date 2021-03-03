@@ -200,8 +200,6 @@ impl Song {
 			(start, end) = get_common_ends(sound_files.iter().map(|de| &*de.filename)).unwrap();
 		}
 
-		let files = sound_files.iter().map(|de| &*de.filename).collect::<Vec<&str>>().join("\n\t");
-
 		let mut songs = Vec::new();
 
 		for sound_file in sound_files {
