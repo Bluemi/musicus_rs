@@ -127,7 +127,6 @@ impl Musicus {
 
 	fn handle_audio_backend(&mut self) {
 		for info in self.info_receiver.try_iter() {
-			// TODO
 			match info {
 				AudioInfo::Playing(_, _) => {}
 				AudioInfo::DurationLeft(_, duration) => {

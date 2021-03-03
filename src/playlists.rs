@@ -1,7 +1,6 @@
 use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::path::{Path, PathBuf};
 use crate::file_utils::{get_dir_entries, DirectoryEntry, get_common_ends};
-use crate::musicus::log;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use serde::{Serialize, Deserialize};
@@ -202,7 +201,6 @@ impl Song {
 		}
 
 		let files = sound_files.iter().map(|de| &*de.filename).collect::<Vec<&str>>().join("\n\t");
-		log(&format!("common begin: \"{}\"\tcommon end: \"{}\"\n\t{}\n\n", start, end, files));
 
 		let mut songs = Vec::new();
 
