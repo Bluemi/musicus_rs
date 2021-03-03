@@ -11,6 +11,7 @@ use crate::playlists::{PlaylistManager, Song, Playlist};
 use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache, PlaylistManagerCache};
 use serde::{Serialize, Deserialize};
 use std::time::Duration;
+use std::path::PathBuf;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -29,9 +30,15 @@ pub struct Musicus {
 	view_state: ViewState,
 }
 
-enum PlayState {
-	Playing,
-	Paused,
+struct PlayState {
+	playing: bool,
+	play_position: PlayPosition,
+}
+
+enum PlayPosition {
+	Empty,
+	File(PathBuf),
+	Playlist(usize, usize), // playlist index, song index
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
@@ -72,7 +79,7 @@ impl Musicus {
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
-			play_state: PlayState::Paused,
+			play_state: PlayState::new(),
 			view_state: cache.view,
 		}
 	}
@@ -125,9 +132,14 @@ impl Musicus {
 				AudioInfo::Playing(_, _) => {}
 				AudioInfo::DurationLeft(_, duration) => {
 					if duration < Duration::new(2, 0) {
-						if let Some(song) = self.playlist_manager.get_current_song() {
-							self.command_sender.send(AudioCommand::Queue(song.path.clone())).unwrap();
-							log(&format!("queuing next song\n"));
+						match &mut self.play_state.play_position {
+							PlayPosition::Playlist(playlist_index, song_index) => {
+								*song_index += 1;
+								if let Some(song) = self.playlist_manager.get_song(*playlist_index, *song_index) {
+									self.command_sender.send(AudioCommand::Queue(song.path.clone())).unwrap();
+								}
+							}
+							_ => {}
 						}
 					}
 				}
@@ -172,26 +184,26 @@ impl Musicus {
 	}
 
 	fn toggle_pause(&mut self) {
-		match self.play_state {
-			PlayState::Playing => {
-				self.command_sender.send(AudioCommand::Pause).unwrap();
-				self.play_state = PlayState::Paused;
-			}
-			PlayState::Paused => {
-				self.command_sender.send(AudioCommand::Unpause).unwrap();
-				self.play_state = PlayState::Playing;
-			}
+		if self.play_state.playing {
+			self.command_sender.send(AudioCommand::Pause).unwrap();
+		} else {
+			self.command_sender.send(AudioCommand::Unpause).unwrap();
 		}
+		self.play_state.playing = !self.play_state.playing;
 	}
 
 	fn filemanager_context_action(&mut self) {
-		self.command_sender.send(AudioCommand::Play(self.file_manager.current_path.clone())).unwrap();
-		self.play_state = PlayState::Playing;
+		let current_path = self.file_manager.current_path.clone();
+		self.command_sender.send(AudioCommand::Play(current_path.clone())).unwrap();
+		self.play_state.playing = true;
+		self.play_state.play_position = PlayPosition::File(current_path);
 	}
 
 	fn playlist_manager_context_action(&mut self) {
         if let Some(song) = self.playlist_manager.get_current_song() {
 			self.command_sender.send(AudioCommand::Play(song.path.clone())).unwrap();
+			self.play_state.playing = true;
+			self.play_state.play_position = PlayPosition::Playlist(self.playlist_manager.current_playlist, self.playlist_manager.get_current_playlist().unwrap().cursor_position);
 		}
 	}
 
@@ -246,6 +258,15 @@ impl Musicus {
 				let line = format!("{: <width$}", line, width=panel.get_width() + FILE_BROWSER_OFFSET as usize);
 				self.window.mvaddstr(y_pos as i32, x_pos.max(0), line);
 			}
+		}
+	}
+}
+
+impl PlayState {
+	fn new() -> PlayState {
+		PlayState {
+			playing: false,
+			play_position: PlayPosition::Empty,
 		}
 	}
 }

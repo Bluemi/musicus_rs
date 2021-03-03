@@ -61,6 +61,15 @@ impl PlaylistManager {
 		None
 	}
 
+	pub fn get_song(&mut self, playlist_index: usize, song_index: usize) -> Option<&mut Song> {
+		if let Some(playlist) = self.playlists.get_mut(playlist_index) {
+			if let Some(song) = playlist.songs.get_mut(song_index) {
+				return Some(song);
+			}
+		}
+		None
+	}
+
 	pub fn move_left(&mut self) {
 		self.view = PlaylistView::Overview;
 	}
