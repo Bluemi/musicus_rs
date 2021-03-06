@@ -1,4 +1,4 @@
-use crate::audio_backend::{AudioBackend, AudioCommand, AudioInfo};
+use crate::audio_backend::{AudioBackend, AudioCommand, AudioInfo, SeekCommand, SeekDirection};
 use crate::file_manager::FileManager;
 use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel};
 use pancurses::{Window, Input};
@@ -64,8 +64,9 @@ impl Musicus {
 
 
 		thread::spawn(move || {
-			let mut audio_backend = AudioBackend::new(command_receiver, info_sender);
-			audio_backend.run();
+			let (update_sender, update_receiver) = unbounded();
+			let mut audio_backend = AudioBackend::new(info_sender, update_sender);
+			audio_backend.run(command_receiver, update_receiver);
 		});
 
 		// load playlists
@@ -145,7 +146,7 @@ impl Musicus {
 				AudioInfo::SongEnded(path) => {
 					log(&format!("song ended: {:?}\n", path));
 				}
-				AudioInfo::SongStarts(path) => {
+				AudioInfo::SongStarts(path, _) => {
 					log(&format!("song starts: {:?}\n", path));
 				}
 				_ => {}
@@ -161,7 +162,8 @@ impl Musicus {
 					got_valid_input = true;
 					match (c, self.view_state) {
 						('q' | ESC_CHAR, _) => *running = false,
-						('i', _) => self.seek(),
+						('i', _) => self.seek(SeekDirection::Forward),
+						('u', _) => self.seek(SeekDirection::Backward),
 						(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
 						('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
 						('n', ViewState::FileManager) => self.file_manager_new_playlist(),
@@ -189,8 +191,11 @@ impl Musicus {
 		got_valid_input
 	}
 
-	fn seek(&mut self) {
-		self.command_sender.send(AudioCommand::Seek(Duration::new(10, 0))).unwrap();
+	fn seek(&mut self, direction: SeekDirection) {
+		self.command_sender.send(AudioCommand::Seek(SeekCommand {
+			duration: Duration::from_secs(5),
+			direction,
+		})).unwrap();
 	}
 
 	fn toggle_pause(&mut self) {
