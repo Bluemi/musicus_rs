@@ -48,7 +48,7 @@ pub enum SeekDirection {
 
 #[derive(Debug)]
 pub enum AudioInfo {
-	Playing(PathBuf, Duration), // current song, left duration
+	Playing(PathBuf, Duration), // current song, current duration
 	Queued(PathBuf),
 	SongStarts(PathBuf, Duration),
 	SongEndsSoon(PathBuf, Duration),
@@ -127,7 +127,6 @@ impl AudioBackend {
 				} else {
 					log(&format!("ERROR: current song is None, but got Playing update"));
 				}
-				log(&format!("Playing {:?}\n", path));
 			}
 			AudioUpdate::SongEnded(path) => {
 				self.info_sender.send(AudioInfo::SongEnded(path)).unwrap();
@@ -141,7 +140,6 @@ impl AudioBackend {
 					current_duration: Duration::from_millis(0),
 					sent_song_ends_soon: false,
 				});
-				log(&format!("SongStarts {:?}\n", path));
 			}
 		}
 	}

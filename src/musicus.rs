@@ -1,6 +1,6 @@
 use crate::audio_backend::{AudioBackend, AudioCommand, AudioInfo, SeekCommand, SeekDirection};
 use crate::file_manager::FileManager;
-use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel};
+use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel, format_duration};
 use pancurses::{Window, Input};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -28,6 +28,13 @@ pub struct Musicus {
 	color_pair_counter: i16,
 	play_state: PlayState,
 	view_state: ViewState,
+	current_song_info: Option<CurrentSongInfo>,
+}
+
+struct CurrentSongInfo {
+	title: String,
+	current_duration: Duration,
+	total_duration: Duration,
 }
 
 struct PlayState {
@@ -82,6 +89,7 @@ impl Musicus {
 			color_pair_counter: 1,
 			play_state: PlayState::new(),
 			view_state: cache.view,
+			current_song_info: None,
 		}
 	}
 
@@ -115,12 +123,10 @@ impl Musicus {
 
 	pub fn run(&mut self) {
 		let mut running = true;
-		self.render();
+		self.render(true);
 		while running {
 			let got_input = self.handle_input(&mut running);
-			if got_input {
-				self.render();
-			}
+			self.render(got_input);
 			self.handle_audio_backend();
 		}
 		self.shutdown();
@@ -129,7 +135,11 @@ impl Musicus {
 	fn handle_audio_backend(&mut self) {
 		for info in self.info_receiver.try_iter() {
 			match info {
-				AudioInfo::Playing(_, _) => {}
+				AudioInfo::Playing(_, duration) => {
+					if let Some(current_song) = &mut self.current_song_info {
+						current_song.current_duration = duration;
+					}
+				}
 				AudioInfo::SongEndsSoon(_, _) => {
 					match &mut self.play_state.play_position {
 						PlayPosition::Playlist(playlist_index, song_index) => {
@@ -146,8 +156,11 @@ impl Musicus {
 				AudioInfo::SongEnded(path) => {
 					log(&format!("song ended: {:?}\n", path));
 				}
-				AudioInfo::SongStarts(path, _) => {
+				AudioInfo::SongStarts(path, duration) => {
 					log(&format!("song starts: {:?}\n", path));
+					if let Some(current_song_info) = &mut self.current_song_info {
+						current_song_info.total_duration = duration;
+					}
 				}
 				_ => {}
 			}
@@ -209,15 +222,26 @@ impl Musicus {
 
 	fn filemanager_context_action(&mut self) {
 		let current_path = self.file_manager.current_path.clone();
-		self.command_sender.send(AudioCommand::Play(current_path.clone())).unwrap();
-		self.play_state.playing = true;
+		Self::play(&mut self.current_song_info, &self.command_sender, &mut self.play_state, current_path.clone(), None);
 		self.play_state.play_position = PlayPosition::File(current_path);
+	}
+
+	fn play(current_song_info: &mut Option<CurrentSongInfo>, command_sender: &Sender<AudioCommand>, play_state: &mut PlayState, path: PathBuf, title: Option<String>) {
+		let title = title.unwrap_or(path.to_string_lossy().into_owned());
+
+		*current_song_info = Some(CurrentSongInfo {
+			title,
+			current_duration: Duration::new(0, 0),
+			total_duration: Duration::new(0, 0),
+		});
+
+		command_sender.send(AudioCommand::Play(path)).unwrap();
+		play_state.playing = true;
 	}
 
 	fn playlist_manager_context_action(&mut self) {
         if let Some(song) = self.playlist_manager.get_current_song() {
-			self.command_sender.send(AudioCommand::Play(song.path.clone())).unwrap();
-			self.play_state.playing = true;
+			Self::play(&mut self.current_song_info, &self.command_sender, &mut self.play_state, song.path.clone(), Some(song.title.clone()));
 			self.play_state.play_position = PlayPosition::Playlist(self.playlist_manager.current_playlist, self.playlist_manager.get_current_playlist().unwrap().cursor_position);
 		}
 	}
@@ -236,14 +260,16 @@ impl Musicus {
 		self.playlist_manager.playlists.push(playlist);
 	}
 
-	fn render(&mut self) {
-		let render_object = match self.view_state {
-			ViewState::FileManager => self.file_manager.get_render_object(),
-			ViewState::Playlists => self.playlist_manager.get_render_object(),
-		};
-		self.window.clear();
-		self.render_panels(&render_object);
-		self.window.mv(self.window.get_max_y(), self.window.get_max_x());
+	fn render(&mut self, everything: bool) {
+		if everything {
+			let render_object = match self.view_state {
+				ViewState::FileManager => self.file_manager.get_render_object(),
+				ViewState::Playlists => self.playlist_manager.get_render_object(),
+			};
+			self.window.clear();
+			self.render_panels(&render_object);
+		}
+		self.render_play_state();
 		self.window.refresh();
 	}
 
@@ -252,6 +278,23 @@ impl Musicus {
 		for panel in render_object.panels.iter() {
 			self.render_panel(panel, x_pos);
 			x_pos += panel.get_width() as i32 + FILE_BROWSER_OFFSET;
+		}
+	}
+
+	fn render_play_state(&mut self) {
+		if let Some(current_song) = &self.current_song_info {
+			self.window.mv(self.window.get_max_y() - 1, 0);
+			self.window.hline(' ', self.window.get_max_x());
+			self.window.mvaddstr(
+				self.window.get_max_y()-1,
+				0,
+				format!(
+					"{}  {} / {}",
+					current_song.title,
+					format_duration(current_song.current_duration),
+					format_duration(current_song.total_duration)
+				),
+			);
 		}
 	}
 

@@ -1,4 +1,5 @@
 use pancurses::{COLOR_WHITE, COLOR_BLACK, COLOR_BLUE};
+use std::time::Duration;
 
 pub struct RenderObject {
 	pub panels: Vec<RenderPanel>,
@@ -72,5 +73,17 @@ impl RenderColor {
 			RenderColor::WHITE => COLOR_WHITE,
 			RenderColor::BLUE => COLOR_BLUE,
 		}
+	}
+}
+
+pub fn format_duration(duration: Duration) -> String {
+	let total_seconds = duration.as_secs();
+	let seconds = total_seconds % 60;
+	let minutes = (total_seconds / 60) % 60;
+	let hours = total_seconds / 3600;
+	if hours > 0 {
+		format!("{}:{:0.2}:{:02}", hours, minutes, seconds)
+	} else {
+		format!("{:0.2}:{:02}", minutes, seconds)
 	}
 }
