@@ -136,6 +136,11 @@ impl AudioBackend {
 			Ok(file) => {
 				if let Ok(source) = rodio::Decoder::new(BufReader::new(file)) {
 					if let Some(_total_duration) = source.total_duration() {
+						// add seekable
+						let (seek_sender, seek_receiver) = unbounded();
+						self.seek_sender = Some(seek_sender);
+						let source = Seekable::new(source, seek_receiver);
+
 						// add start info
 						let update_sender = self.update_sender.clone();
 						let path_buf = path.to_path_buf();
@@ -160,11 +165,6 @@ impl AudioBackend {
 							source,
 							move |_| update_sender.send(AudioUpdate::SongEnded(path_buf.clone())).unwrap(),
 						);
-
-						// add seekable
-						let (seek_sender, seek_receiver) = unbounded();
-						self.seek_sender = Some(seek_sender);
-						let source = Seekable::new(source, seek_receiver);
 
 						self.sink.append(source);
 
