@@ -8,6 +8,7 @@ use crate::done_access::DoneAccess;
 use crate::start_access::StartAccess;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(200);
+const SONG_ENDS_SOON_OFFSET: Duration = Duration::from_millis(2000);
 
 pub struct AudioBackend {
 	sink: rodio::Sink,
@@ -17,6 +18,8 @@ pub struct AudioBackend {
     info_sender: Sender<AudioInfo>, // sender for info to musicus
 	update_receiver: Receiver<AudioUpdate>, // internal updates for source state
 	update_sender: Sender<AudioUpdate>, // internal updates for source state
+	current_song: Option<PathBuf>,
+	sent_song_ends_soon: bool,
 }
 
 pub enum AudioCommand {
@@ -55,6 +58,8 @@ impl AudioBackend {
 			info_sender,
 			update_receiver,
 			update_sender,
+			current_song: None,
+			sent_song_ends_soon: false
 		}
 	}
 
@@ -90,15 +95,20 @@ impl AudioBackend {
 		match update {
 			AudioUpdate::Playing(path, duration) => {
 				self.info_sender.send(AudioInfo::Playing(path.clone(), duration)).unwrap();
-				if duration <= UPDATE_DURATION {
+				if !self.sent_song_ends_soon && duration <= SONG_ENDS_SOON_OFFSET {
 					self.info_sender.send(AudioInfo::SongEndsSoon(path.clone(), duration)).unwrap();
+					self.sent_song_ends_soon = true;
 				}
 			},
 			AudioUpdate::SongEnded(path) => {
 				self.info_sender.send(AudioInfo::SongEnded(path)).unwrap();
+				self.current_song = None;
+				self.sent_song_ends_soon = false;
 			}
 			AudioUpdate::SongStarts(path) => {
-				self.info_sender.send(AudioInfo::SongStarts(path)).unwrap();
+				self.info_sender.send(AudioInfo::SongStarts(path.clone())).unwrap();
+				self.current_song = Some(path.to_path_buf());
+				self.sent_song_ends_soon = false;
 			}
 		}
 	}
