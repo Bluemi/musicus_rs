@@ -1,47 +1,55 @@
 use rodio::{Source, Sample};
 use std::time::Duration;
 
-pub struct StartAccess<S, F> {
+pub struct PeriodicAccess<S, F> {
 	source: S,
 	modifier: F,
-	signal_sent: bool,
+	update_frequency: u32,
+	samples_until_update: u32,
 }
 
-impl<S, F> StartAccess<S, F>
+impl<S, F> PeriodicAccess<S, F>
 where S: Source,
 	  S::Item: Sample,
-	  F: FnMut(),
+	  F: FnMut(&mut S),
 {
-	pub fn new(source: S, modifier: F) -> StartAccess<S, F> {
-		StartAccess {
+	pub fn new(source: S, modifier: F, period: Duration) -> PeriodicAccess<S, F> {
+		let update_frequency = (period.as_secs_f64() * source.sample_rate() as f64) as u32;
+
+		PeriodicAccess {
 			source,
 			modifier,
-			signal_sent: false,
+			update_frequency,
+			samples_until_update: 1,
 		}
 	}
 }
 
-impl<S, F> Iterator for StartAccess<S, F>
+impl<S, F> Iterator for PeriodicAccess<S, F>
 where S: Source,
 	  S::Item: Sample,
-	  F: FnMut(),
+	  F: FnMut(&mut S),
 {
 	type Item = S::Item;
 
 	#[inline]
 	fn next(&mut self) -> Option<S::Item> {
-		if !self.signal_sent {
-			(self.modifier)();
-			self.signal_sent = true;
+		let next = self.source.next();
+
+		self.samples_until_update -= 1;
+		if self.samples_until_update == 0 {
+			(self.modifier)(&mut self.source);
+			self.samples_until_update = self.update_frequency;
 		}
-		self.source.next()
+
+		next
 	}
 }
 
-impl<S, F> Source for StartAccess<S, F>
+impl<S, F> Source for PeriodicAccess<S, F>
 where S: Source,
       S::Item: Sample,
-	  F: FnMut(),
+	  F: FnMut(&mut S),
 {
 	fn current_frame_len(&self) -> Option<usize> {
 		self.source.current_frame_len()
@@ -64,7 +72,7 @@ pub mod tests {
 	use super::*;
 
 	#[test]
-	pub fn test_start_access() {
+	fn test_periodic_access() {
 		use rodio::Sink;
 
 		let (sender, receiver) = crossbeam::unbounded();
@@ -73,12 +81,11 @@ pub mod tests {
 		let sink = rodio::Sink::try_new(&stream_handle).unwrap();
 
 		// Add a dummy source of the sake of the example.
-		let source = rodio::source::SineWave::new(220);
+		let source = rodio::source::SineWave::new(440);
 		let source = source.take_duration(Duration::new(2, 0));
-		let source = StartAccess::new(source, move |_| { sender.send("hey"); });
+		let source = PeriodicAccess::new(source, move |_| { sender.send("hey"); } );
 		sink.append(source);
 		let msg = receiver.recv().unwrap();
-		sink.sleep_until_end();
 		assert_eq!(msg, "hey");
 	}
 }

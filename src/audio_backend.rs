@@ -7,6 +7,7 @@ use crossbeam::{Sender, Receiver, Select};
 use crate::done_access::DoneAccess;
 use crate::start_access::StartAccess;
 use crate::musicus::log;
+use crate::periodic_access::PeriodicAccess;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(100);
 const SONG_ENDS_SOON_OFFSET: Duration = Duration::from_millis(2000);
@@ -116,6 +117,7 @@ impl AudioBackend {
 		match update {
 			AudioUpdate::Playing(path, duration_left) => {
 				if let Some(current_song) = &mut self.current_song {
+					assert_eq!(current_song.path, path);
 					if !current_song.sent_song_ends_soon && duration_left <= SONG_ENDS_SOON_OFFSET {
 						self.info_sender.send(AudioInfo::SongEndsSoon(path.clone(), duration_left)).unwrap();
 						current_song.sent_song_ends_soon = true;
@@ -125,6 +127,7 @@ impl AudioBackend {
 				} else {
 					log(&format!("ERROR: current song is None, but got Playing update"));
 				}
+				log(&format!("Playing {:?}\n", path));
 			}
 			AudioUpdate::SongEnded(path) => {
 				self.info_sender.send(AudioInfo::SongEnded(path)).unwrap();
@@ -138,6 +141,7 @@ impl AudioBackend {
 					current_duration: Duration::from_millis(0),
 					sent_song_ends_soon: false,
 				});
+				log(&format!("SongStarts {:?}\n", path));
 			}
 		}
 	}
@@ -181,9 +185,10 @@ impl AudioBackend {
 						// add playing info
 						let update_sender = orig_update_sender.clone();
 						let path_buf = path.to_path_buf();
-						let source = source.periodic_access(
-							UPDATE_DURATION,
-							move |s| update_sender.send(AudioUpdate::Playing(path_buf.clone(), s.total_duration().unwrap_or(Duration::new(0, 0)))).unwrap()
+						let source = PeriodicAccess::new(
+							source,
+							move |s| update_sender.send(AudioUpdate::Playing(path_buf.clone(), s.total_duration().unwrap_or(Duration::new(0, 0)))).unwrap(),
+							UPDATE_DURATION
 						);
 
 						// add done info
