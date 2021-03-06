@@ -5,6 +5,7 @@ use rodio::Source;
 use std::time::Duration;
 use crossbeam::{unbounded, Sender, Receiver, select};
 use crate::musicus::log;
+use crate::done_access::DoneAccess;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(1000);
 
@@ -111,6 +112,13 @@ impl AudioBackend {
 						let source = source.periodic_access(
 							UPDATE_DURATION,
 							move |s| update_sender.send(AudioInfo::Playing(path_buf.clone(), s.total_duration().unwrap_or(Duration::new(0, 0)))).unwrap()
+						);
+
+						let update_sender = self.update_sender.clone();
+						let path_buf = path.to_path_buf();
+						let source = DoneAccess::new(
+							source,
+							move |_| { update_sender.send(AudioInfo::SongEnded(path_buf.clone())).unwrap()}
 						);
 
 						self.sink.append(source);

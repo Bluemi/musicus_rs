@@ -9,6 +9,7 @@ mod audio_backend;
 mod playlists;
 mod file_utils;
 mod config;
+mod done_access;
 
 use crate::musicus::Musicus;
 
