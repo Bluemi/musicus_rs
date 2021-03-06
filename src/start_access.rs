@@ -30,11 +30,12 @@ where S: Source,
 
 	#[inline]
 	fn next(&mut self) -> Option<S::Item> {
+		let next = self.source.next();
 		if !self.signal_sent {
 			(self.modifier)();
 			self.signal_sent = true;
 		}
-		self.source.next()
+		next
 	}
 }
 
