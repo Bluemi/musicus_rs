@@ -7,7 +7,7 @@ use crossbeam::{unbounded, Sender, Receiver, select};
 use crate::done_access::DoneAccess;
 use crate::start_access::StartAccess;
 
-const UPDATE_DURATION: Duration = Duration::from_millis(1000);
+const UPDATE_DURATION: Duration = Duration::from_millis(200);
 
 pub struct AudioBackend {
 	sink: rodio::Sink,
