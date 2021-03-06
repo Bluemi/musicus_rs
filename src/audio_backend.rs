@@ -6,6 +6,7 @@ use std::time::Duration;
 use crossbeam::{unbounded, Sender, Receiver, select};
 use crate::done_access::DoneAccess;
 use crate::start_access::StartAccess;
+use crate::seekable::Seekable;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(200);
 const SONG_ENDS_SOON_OFFSET: Duration = Duration::from_millis(2000);
@@ -18,6 +19,7 @@ pub struct AudioBackend {
     info_sender: Sender<AudioInfo>, // sender for info to musicus
 	update_receiver: Receiver<AudioUpdate>, // internal updates for source state
 	update_sender: Sender<AudioUpdate>, // internal updates for source state
+	seek_sender: Option<Sender<Duration>>,
 	current_song: Option<PathBuf>,
 	sent_song_ends_soon: bool,
 }
@@ -27,6 +29,7 @@ pub enum AudioCommand {
 	Queue(PathBuf),
 	Pause,
     Unpause,
+	Seek(Duration),
 }
 
 #[derive(Debug)]
@@ -58,8 +61,9 @@ impl AudioBackend {
 			info_sender,
 			update_receiver,
 			update_sender,
+			seek_sender: None,
 			current_song: None,
-			sent_song_ends_soon: false
+			sent_song_ends_soon: false,
 		}
 	}
 
@@ -88,6 +92,11 @@ impl AudioBackend {
 			AudioCommand::Queue(path) => self.queue(&path),
 			AudioCommand::Pause => self.pause(),
 			AudioCommand::Unpause => self.unpause(),
+			AudioCommand::Seek(duration) => {
+				if let Some(seek_sender) = &self.seek_sender {
+					seek_sender.send(duration).unwrap();
+				}
+			},
 		}
 	}
 
@@ -151,6 +160,11 @@ impl AudioBackend {
 							source,
 							move |_| update_sender.send(AudioUpdate::SongEnded(path_buf.clone())).unwrap(),
 						);
+
+						// add seekable
+						let (seek_sender, seek_receiver) = unbounded();
+						self.seek_sender = Some(seek_sender);
+						let source = Seekable::new(source, seek_receiver);
 
 						self.sink.append(source);
 

@@ -11,6 +11,7 @@ use crate::playlists::{PlaylistManager, Song, Playlist};
 use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache, PlaylistManagerCache};
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
+use std::time::Duration;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -160,6 +161,7 @@ impl Musicus {
 					got_valid_input = true;
 					match (c, self.view_state) {
 						('q' | ESC_CHAR, _) => *running = false,
+						('i', _) => self.seek(),
 						(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
 						('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
 						('n', ViewState::FileManager) => self.file_manager_new_playlist(),
@@ -185,6 +187,10 @@ impl Musicus {
 			}
 		}
 		got_valid_input
+	}
+
+	fn seek(&mut self) {
+		self.command_sender.send(AudioCommand::Seek(Duration::new(10, 0))).unwrap();
 	}
 
 	fn toggle_pause(&mut self) {
@@ -232,6 +238,7 @@ impl Musicus {
 		};
 		self.window.clear();
 		self.render_panels(&render_object);
+		self.window.mv(self.window.get_max_y(), self.window.get_max_x());
 		self.window.refresh();
 	}
 
