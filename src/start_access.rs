@@ -61,6 +61,8 @@ where S: Source,
 }
 
 pub mod tests {
+	use super::*;
+
 	#[test]
 	pub fn test_start_access() {
 		use rodio::Sink;
