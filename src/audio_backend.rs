@@ -4,8 +4,8 @@ use std::io::BufReader;
 use rodio::Source;
 use std::time::Duration;
 use crossbeam::{unbounded, Sender, Receiver, select};
-use crate::musicus::log;
 use crate::done_access::DoneAccess;
+use crate::start_access::StartAccess;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(1000);
 
@@ -15,8 +15,8 @@ pub struct AudioBackend {
 	stream_handle: rodio::OutputStreamHandle,
 	command_receiver: Receiver<AudioCommand>, // commands from musicus
     info_sender: Sender<AudioInfo>, // sender for info to musicus
-	update_receiver: Receiver<AudioInfo>, // internal updates for source state
-	update_sender: Sender<AudioInfo>, // internal updates for source state
+	update_receiver: Receiver<AudioUpdate>, // internal updates for source state
+	update_sender: Sender<AudioUpdate>, // internal updates for source state
 }
 
 pub enum AudioCommand {
@@ -26,10 +26,20 @@ pub enum AudioCommand {
     Unpause,
 }
 
+#[derive(Debug)]
 pub enum AudioInfo {
 	Playing(PathBuf, Duration), // current song, left duration
+	Queued(PathBuf),
+	SongStarts(PathBuf),
 	SongEndsSoon(PathBuf, Duration),
 	FailedOpen(PathBuf),
+	SongEnded(PathBuf),
+}
+
+#[derive(Debug)]
+enum AudioUpdate {
+	Playing(PathBuf, Duration), // current song, left duration
+	SongStarts(PathBuf),
 	SongEnded(PathBuf),
 }
 
@@ -76,19 +86,20 @@ impl AudioBackend {
 		}
 	}
 
-	fn handle_update(&mut self, update: AudioInfo) {
+	fn handle_update(&mut self, update: AudioUpdate) {
 		match update {
-			AudioInfo::Playing(path, duration) => {
+			AudioUpdate::Playing(path, duration) => {
 				self.info_sender.send(AudioInfo::Playing(path.clone(), duration)).unwrap();
 				if duration <= UPDATE_DURATION {
 					self.info_sender.send(AudioInfo::SongEndsSoon(path.clone(), duration)).unwrap();
 				}
-				log(&format!("got update: {:?}\n", duration));
 			},
-			AudioInfo::SongEnded(path) => {
+			AudioUpdate::SongEnded(path) => {
 				self.info_sender.send(AudioInfo::SongEnded(path)).unwrap();
 			}
-			_ => panic!("should not get any other audio info than Playing or SongEnded in handle_update()"),
+			AudioUpdate::SongStarts(path) => {
+				self.info_sender.send(AudioInfo::SongStarts(path)).unwrap();
+			}
 		}
 	}
 
@@ -106,22 +117,34 @@ impl AudioBackend {
 			Ok(file) => {
 				if let Ok(source) = rodio::Decoder::new(BufReader::new(file)) {
 					if let Some(_total_duration) = source.total_duration() {
+						// add start info
 						let update_sender = self.update_sender.clone();
 						let path_buf = path.to_path_buf();
-						self.info_sender.send(AudioInfo::Playing(path.to_path_buf(), source.total_duration().unwrap())).unwrap();
-						let source = source.periodic_access(
-							UPDATE_DURATION,
-							move |s| update_sender.send(AudioInfo::Playing(path_buf.clone(), s.total_duration().unwrap_or(Duration::new(0, 0)))).unwrap()
+						let source = StartAccess::new(
+							source,
+							move || update_sender.send(AudioUpdate::SongStarts(path_buf.clone())).unwrap(),
+
 						);
 
+						// add playing info
+						let update_sender = self.update_sender.clone();
+						let path_buf = path.to_path_buf();
+						let source = source.periodic_access(
+							UPDATE_DURATION,
+							move |s| update_sender.send(AudioUpdate::Playing(path_buf.clone(), s.total_duration().unwrap_or(Duration::new(0, 0)))).unwrap()
+						);
+
+						// add done info
 						let update_sender = self.update_sender.clone();
 						let path_buf = path.to_path_buf();
 						let source = DoneAccess::new(
 							source,
-							move |_| { update_sender.send(AudioInfo::SongEnded(path_buf.clone())).unwrap()}
+							move |_| update_sender.send(AudioUpdate::SongEnded(path_buf.clone())).unwrap(),
 						);
 
 						self.sink.append(source);
+
+						self.info_sender.send(AudioInfo::Queued(path.to_path_buf())).unwrap();
 					} else {
 						self.info_sender.send(AudioInfo::FailedOpen(path.to_path_buf())).unwrap();
 					}
