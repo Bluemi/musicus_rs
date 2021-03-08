@@ -202,11 +202,13 @@ impl Song {
 
 		let mut songs = Vec::new();
 
-		for sound_file in sound_files {
+		for (index, sound_file) in sound_files.iter().enumerate() {
 			let title = &sound_file.filename[start.len()..sound_file.filename.len()-end.len()];
+			let title = normalize_title(title, index);
+
 			songs.push(
 				Song {
-					title: title.to_string(),
+					title,
 					path: sound_file.path.clone(),
 				}
 			);
@@ -217,5 +219,48 @@ impl Song {
 		}
 
 		songs
+	}
+}
+
+fn normalize_title(title: &str, index: usize) -> String {
+	enum State {
+		Init,
+		Number(u32),
+		Other,
+	}
+	// check for numbers at title begin
+    let mut state = State::Init;
+
+	for c in title.chars() {
+        if c.is_digit(10) {
+			state = match state {
+				State::Init => State::Number(1),
+				State::Number(l) => State::Number(l+1),
+				State::Other => unreachable!("Failed to normalize title. State::Other should never occur"),
+			}
+		} else if c == ' ' {
+			state = match state {
+				State::Init => State::Other,
+				State::Number(l) => State::Number(l),
+				State::Other => unreachable!("Failed to normalize title. State::Other should never occur"),
+			}
+		} else {
+			state = match state {
+				State::Init => State::Other,
+				State::Number(_) => State::Other, // Number directly followed by letter is counted as word
+				State::Other => unreachable!("Failed to normalize title. State::Other should never occur"),
+			}
+		}
+        if matches!(state, State::Other) {
+			break;
+		}
+	}
+
+	match state {
+		State::Init => "<no title>".to_string(),
+		State::Number(1) => format!("0{}", title),
+		State::Number(2) => title.to_string(),
+		State::Number(_) => format!("{:02} {}", index, title),
+		State::Other => title.to_string(),
 	}
 }
