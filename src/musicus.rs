@@ -317,7 +317,7 @@ impl Musicus {
 	}
 
 	fn render_panel(&mut self, panel: &RenderPanel, x_pos: i32) {
-		for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).take(self.window.get_max_y() as usize).enumerate() {
+		for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).take((self.window.get_max_y()-1) as usize).enumerate() {
 			self.set_color(e.foreground_color, e.background_color);
 			if (e.text.len() as i32) >= -x_pos {
 				let line = &e.text[(-x_pos).max(0) as usize..];
