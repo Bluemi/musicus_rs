@@ -82,8 +82,8 @@ impl Musicus {
 		Musicus {
             command_sender,
             info_receiver,
-			file_manager: FileManager::new(window.get_max_y() as usize, &cache.filemanager_cache),
-			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache, window.get_max_y() as usize),
+			file_manager: FileManager::new((window.get_max_y()-1) as usize, &cache.filemanager_cache),
+			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache, (window.get_max_y()-1) as usize),
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
