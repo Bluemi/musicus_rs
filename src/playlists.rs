@@ -241,7 +241,7 @@ fn normalize_title(title: &str, index: usize) -> String {
 		} else if c == ' ' {
 			state = match state {
 				State::Init => State::Other,
-				State::Number(l) => State::Number(l),
+				State::Number(_) => break,
 				State::Other => unreachable!("Failed to normalize title. State::Other should never occur"),
 			}
 		} else {
@@ -262,5 +262,16 @@ fn normalize_title(title: &str, index: usize) -> String {
 		State::Number(2) => title.to_string(),
 		State::Number(_) => format!("{:02} {}", index, title),
 		State::Other => title.to_string(),
+	}
+}
+
+mod tests {
+	use crate::playlists::normalize_title;
+
+	#[test]
+	fn test_normalize_title() {
+		let title = "1 Heyhey";
+		let normalized_title = normalize_title(title, 0);
+		assert_eq!(&normalized_title, "01 Heyhey")
 	}
 }
