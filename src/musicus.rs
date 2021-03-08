@@ -126,8 +126,8 @@ impl Musicus {
 		self.render(true);
 		while running {
 			let got_input = self.handle_input(&mut running);
-			self.render(got_input);
 			self.handle_audio_backend();
+			self.render(got_input);
 		}
 		self.shutdown();
 	}
@@ -138,6 +138,7 @@ impl Musicus {
 				AudioInfo::Playing(_, duration) => {
 					if let Some(current_song) = &mut self.current_song_info {
 						current_song.current_duration = duration;
+						log(&format!("playing update: {:?}\n", current_song.current_duration));
 					}
 				}
 				AudioInfo::SongEndsSoon(_, _) => {
@@ -146,21 +147,23 @@ impl Musicus {
 							*song_index += 1;
 							if let Some(song) = self.playlist_manager.get_song(*playlist_index, *song_index) {
 								self.command_sender.send(AudioCommand::Queue(song.path.clone())).unwrap();
-								log(&format!("song queued: {}\n", song.title));
 							}
 						}
 						_ => {}
 					}
 				}
-				AudioInfo::FailedOpen(_) => {}
+				AudioInfo::FailedOpen(path) => {
+					log(&format!("Failed to open: {:?}\n", path));
+				}
 				AudioInfo::SongEnded(path) => {
 					log(&format!("song ended: {:?}\n", path));
 				}
-				AudioInfo::SongStarts(path, duration) => {
-					log(&format!("song starts: {:?}\n", path));
+				AudioInfo::SongStarts(_path, total_duration, start_duration) => {
 					if let Some(current_song_info) = &mut self.current_song_info {
-						current_song_info.total_duration = duration;
+						current_song_info.total_duration = total_duration;
+						current_song_info.current_duration = start_duration;
 					}
+					log(&format!("start update: {:?}\n", start_duration));
 				}
 				_ => {}
 			}
@@ -205,10 +208,14 @@ impl Musicus {
 	}
 
 	fn seek(&mut self, direction: SeekDirection) {
+		let duration = Duration::from_secs(5);
 		self.command_sender.send(AudioCommand::Seek(SeekCommand {
-			duration: Duration::from_secs(5),
+			duration,
 			direction,
 		})).unwrap();
+		if let Some(current_song_info) = &mut self.current_song_info {
+			current_song_info.current_duration = (current_song_info.current_duration + duration).min(current_song_info.total_duration)
+		}
 	}
 
 	fn toggle_pause(&mut self) {

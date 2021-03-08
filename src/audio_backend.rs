@@ -21,11 +21,22 @@ pub struct AudioBackend {
 	current_song: Option<CurrentSongState>, //
 }
 
-pub struct CurrentSongState {
+struct CurrentSongState {
 	path: PathBuf,
 	total_duration: Duration,
 	current_duration: Duration,
+	start_duration: Duration,
 	sent_song_ends_soon: bool,
+}
+
+impl CurrentSongState {
+	fn get_real_current_duration(&self) -> Duration {
+		self.current_duration + self.start_duration
+	}
+
+	fn set_real_current_duration(&mut self, duration: Duration) {
+		self.current_duration = duration.checked_sub(self.start_duration).unwrap_or(Duration::new(0, 0));
+	}
 }
 
 pub enum AudioCommand {
@@ -50,7 +61,7 @@ pub enum SeekDirection {
 pub enum AudioInfo {
 	Playing(PathBuf, Duration), // current song, current duration
 	Queued(PathBuf),
-	SongStarts(PathBuf, Duration),
+	SongStarts(PathBuf, Duration, Duration),
 	SongEndsSoon(PathBuf, Duration),
 	FailedOpen(PathBuf),
 	SongEnded(PathBuf),
@@ -59,7 +70,7 @@ pub enum AudioInfo {
 #[derive(Debug)]
 pub enum AudioUpdate {
 	Playing(PathBuf, Duration), // current song, left duration
-	SongStarts(PathBuf, Duration), // current song, total duration
+	SongStarts(PathBuf, Duration, Duration), // current song, total duration, start duration
 	SongEnded(PathBuf),
 }
 
@@ -122,43 +133,55 @@ impl AudioBackend {
 						self.info_sender.send(AudioInfo::SongEndsSoon(path.clone(), duration_left)).unwrap();
 						current_song.sent_song_ends_soon = true;
 					}
-					current_song.current_duration = current_song.total_duration - duration_left;
-					self.info_sender.send(AudioInfo::Playing(path.clone(), current_song.current_duration)).unwrap();
+					current_song.set_real_current_duration(current_song.total_duration - duration_left);
+					// log(&format!("playing update: {:?}\n", current_song.get_real_current_duration()));
+					self.info_sender.send(AudioInfo::Playing(path.clone(), current_song.get_real_current_duration())).unwrap();
 				} else {
-					log(&format!("ERROR: current song is None, but got Playing update"));
+					log(&format!("ERROR: current song is None, but got Playing update\n"));
 				}
 			}
 			AudioUpdate::SongEnded(path) => {
 				self.info_sender.send(AudioInfo::SongEnded(path)).unwrap();
 				self.current_song = None;
 			}
-			AudioUpdate::SongStarts(path, total_duration) => {
-				self.info_sender.send(AudioInfo::SongStarts(path.clone(), total_duration)).unwrap();
+			AudioUpdate::SongStarts(path, total_duration, start_duration) => {
+				self.info_sender.send(AudioInfo::SongStarts(path.clone(), total_duration, start_duration)).unwrap();
 				self.current_song = Some(CurrentSongState {
 					path: path.to_path_buf(),
 					total_duration,
-					current_duration: Duration::from_millis(0),
+					current_duration: Duration::new(0, 0),
+					start_duration,
 					sent_song_ends_soon: false,
 				});
+				// log(&format!("start update: {:?}\n", start_duration));
 			}
 		}
 	}
 
 	fn seek(&mut self, seek_command: SeekCommand) {
 		if let Some(current_song) = &mut self.current_song {
-			current_song.current_duration = match seek_command.direction {
+			current_song.start_duration = match seek_command.direction {
 				SeekDirection::Forward => {
-					(current_song.current_duration + seek_command.duration).min(current_song.total_duration)
+					(current_song.get_real_current_duration() + seek_command.duration).min(current_song.total_duration)
 				}
 				SeekDirection::Backward => {
-					current_song.current_duration.checked_sub(seek_command.duration).unwrap_or(Duration::new(0, 0))
+					current_song.get_real_current_duration().checked_sub(seek_command.duration).unwrap_or(Duration::new(0, 0))
 				}
 			};
-			Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &current_song.path, Some(current_song.current_duration));
+			current_song.current_duration = Duration::new(0, 0);
+			// log(&format!("seek: {:?}\n", current_song.get_real_current_duration()));
+			Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &current_song.path, Some(current_song.get_real_current_duration()));
 		}
 	}
 
-	fn play(sink: &mut Sink, stream_handle: &rodio::OutputStreamHandle, update_sender: &Sender<AudioUpdate>, info_sender: &Sender<AudioInfo>, path: &Path, skip: Option<Duration>) {
+	fn play(
+		sink: &mut Sink,
+		stream_handle: &rodio::OutputStreamHandle,
+		update_sender: &Sender<AudioUpdate>,
+		info_sender: &Sender<AudioInfo>,
+		path: &Path,
+		skip: Option<Duration>,
+	) {
 		if !sink.empty() {
 			sink.stop();
 			*sink = rodio::Sink::try_new(stream_handle).unwrap();
@@ -167,24 +190,30 @@ impl AudioBackend {
 		sink.play();
 	}
 
-	fn queue(sink: &mut Sink, orig_update_sender: &Sender<AudioUpdate>, info_sender: &Sender<AudioInfo>, path: &Path, skip: Option<Duration>) {
+	fn queue(
+		sink: &mut Sink,
+		orig_update_sender: &Sender<AudioUpdate>,
+		info_sender: &Sender<AudioInfo>,
+		path: &Path,
+		skip: Option<Duration>,
+	) {
 		match File::open(path) {
 			Ok(file) => {
-				if let Ok(source) = rodio::Decoder::new(BufReader::new(file)) {
-					if let Some(total_duration) = source.total_duration() {
+				if let Ok(decoder) = rodio::Decoder::new(BufReader::new(file)) {
+					if let Some(total_duration) = decoder.total_duration() {
 						// add start info
 						let update_sender = orig_update_sender.clone();
 						let path_buf = path.to_path_buf();
-						let source = StartAccess::new(
-							source,
-							move || update_sender.send(AudioUpdate::SongStarts(path_buf.clone(), total_duration)).unwrap(),
+						let start_access_source = StartAccess::new(
+							decoder,
+							move || update_sender.send(AudioUpdate::SongStarts(path_buf.clone(), total_duration, skip.unwrap_or(Duration::new(0, 0)))).unwrap(),
 						);
 
 						// add playing info
 						let update_sender = orig_update_sender.clone();
 						let path_buf = path.to_path_buf();
-						let source = PeriodicAccess::new(
-							source,
+						let periodic_access_source = PeriodicAccess::new(
+							start_access_source,
 							move |s| update_sender.send(AudioUpdate::Playing(path_buf.clone(), s.total_duration().unwrap_or(Duration::new(0, 0)))).unwrap(),
 							UPDATE_DURATION
 						);
@@ -192,16 +221,16 @@ impl AudioBackend {
 						// add done info
 						let update_sender = orig_update_sender.clone();
 						let path_buf = path.to_path_buf();
-						let source = DoneAccess::new(
-							source,
+						let done_access_source = DoneAccess::new(
+							periodic_access_source,
 							move |_| update_sender.send(AudioUpdate::SongEnded(path_buf.clone())).unwrap(),
 						);
 
 						if let Some(duration) = skip {
-							let source = source.skip_duration(duration);
+							let source = done_access_source.skip_duration(duration);
 							sink.append(source);
 						} else {
-							sink.append(source);
+							sink.append(done_access_source);
 						}
 
 						info_sender.send(AudioInfo::Queued(path.to_path_buf())).unwrap();
