@@ -72,6 +72,7 @@ pub mod tests {
 
 		let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
 		let sink = rodio::Sink::try_new(&stream_handle).unwrap();
+		sink.set_volume(0.0);
 
 		// Add a dummy source of the sake of the example.
 		let source = rodio::source::SineWave::new(440);
