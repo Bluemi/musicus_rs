@@ -75,7 +75,7 @@ pub mod tests {
 		// Add a dummy source of the sake of the example.
 		let source = rodio::source::SineWave::new(220);
 		let source = source.take_duration(Duration::new(2, 0));
-		let source = StartAccess::new(source, move || { sender.send("hey"); });
+		let source = StartAccess::new(source, move || { sender.send("hey").unwrap(); });
 		sink.append(source);
 		let msg = receiver.recv().unwrap();
 		sink.sleep_until_end();
