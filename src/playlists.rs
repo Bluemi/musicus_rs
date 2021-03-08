@@ -204,7 +204,7 @@ impl Song {
 
 		for (index, sound_file) in sound_files.iter().enumerate() {
 			let title = &sound_file.filename[start.len()..sound_file.filename.len()-end.len()];
-			let title = normalize_title(title, index);
+			let title = normalize_title(title, index+1);
 
 			songs.push(
 				Song {
@@ -261,7 +261,7 @@ fn normalize_title(title: &str, index: usize) -> String {
 		State::Number(1) => format!("0{}", title),
 		State::Number(2) => title.to_string(),
 		State::Number(_) => format!("{:02} {}", index, title),
-		State::Other => title.to_string(),
+		State::Other => format!("{:02} {}", index, title),
 	}
 }
 
@@ -269,9 +269,16 @@ mod tests {
 	use crate::playlists::normalize_title;
 
 	#[test]
-	fn test_normalize_title() {
+	fn test_normalize_title1() {
 		let title = "1 Heyhey";
 		let normalized_title = normalize_title(title, 0);
 		assert_eq!(&normalized_title, "01 Heyhey")
+	}
+
+	#[test]
+	fn test_normalize_title2() {
+		let title = "1Heyhey";
+		let normalized_title = normalize_title(title, 1);
+		assert_eq!(&normalized_title, "01 1Heyhey")
 	}
 }
