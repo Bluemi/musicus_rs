@@ -266,6 +266,7 @@ fn normalize_title(title: &str, index: usize) -> String {
 }
 
 mod tests {
+    #[allow(unused_imports)]
 	use crate::playlists::normalize_title;
 
 	#[test]
