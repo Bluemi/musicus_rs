@@ -289,6 +289,7 @@ impl Musicus {
 	}
 
 	fn render_play_state(&mut self) {
+		self.set_color(RenderColor::BLACK, RenderColor::CYAN);
 		if let Some(current_song) = &self.current_song_info {
 			self.window.mv(self.window.get_max_y() - 1, 0);
 			self.window.hline(' ', self.window.get_max_x());
