@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use crate::file_utils::{create_dir, get_dir_entries};
+use crate::file_manager::file_utils::{create_dir, get_dir_entries};
 use crate::playlists::{Playlist, PlaylistView};
 use serde::{Serialize, Deserialize};
 use std::fs::{File, OpenOptions};

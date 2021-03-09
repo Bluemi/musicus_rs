@@ -2,18 +2,14 @@
 #![feature(destructuring_assignment)]
 #![feature(duration_consts_2)]
 
+use crate::musicus::Musicus;
+
 mod musicus;
 mod file_manager;
 mod render;
 mod audio_backend;
 mod playlists;
-mod file_utils;
 mod config;
-mod done_access;
-mod start_access;
-mod periodic_access;
-
-use crate::musicus::Musicus;
 
 fn main() {
 	let mut musicus = Musicus::new();

@@ -1,13 +1,20 @@
-use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::BufReader;
-use rodio::{Source, Sink};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
-use crossbeam::{Sender, Receiver, Select};
-use crate::done_access::DoneAccess;
-use crate::start_access::StartAccess;
+
+use crossbeam::{Receiver, Select, Sender};
+use rodio::{Sink, Source};
+
+use done_access::DoneAccess;
+use periodic_access::PeriodicAccess;
+use start_access::StartAccess;
+
 use crate::musicus::log;
-use crate::periodic_access::PeriodicAccess;
+
+mod done_access;
+mod start_access;
+mod periodic_access;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(100);
 const SONG_ENDS_SOON_OFFSET: Duration = Duration::from_millis(2000);

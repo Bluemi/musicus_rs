@@ -1,9 +1,12 @@
-use std::path::{PathBuf, Path};
-use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::collections::HashMap;
 use std::mem::swap;
-use crate::file_utils::{get_dir_entries, normalize_dir};
+use std::path::{Path, PathBuf};
+
 use crate::config::FileManagerCache;
+use crate::render::{Renderable, RenderColor, RenderEntry, RenderObject, RenderPanel};
+use crate::file_manager::file_utils::{normalize_dir, get_dir_entries};
+
+pub mod file_utils;
 
 pub struct FileManager {
 	pub current_path: PathBuf,

@@ -1,6 +1,6 @@
 use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::path::{Path, PathBuf};
-use crate::file_utils::{get_dir_entries, DirectoryEntry, get_common_ends};
+use crate::file_manager::file_utils::{get_dir_entries, DirectoryEntry, get_common_ends};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use serde::{Serialize, Deserialize};
