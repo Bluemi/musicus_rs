@@ -1,4 +1,4 @@
-use crate::audio_backend::{AudioBackend, AudioCommand, AudioInfo, SeekCommand, SeekDirection};
+use crate::audio_backend::{AudioBackend, AudioCommand, AudioInfo, SeekCommand, SeekDirection, AudioBackendCommand};
 use crate::file_manager::FileManager;
 use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel, format_duration};
 use pancurses::{Window, Input};
@@ -19,7 +19,7 @@ const ENTER_CHAR: char = 10 as char;
 const CURSES_TIMEOUT: i32 = 200;
 
 pub struct Musicus {
-    command_sender: Sender<AudioCommand>,
+    command_sender: Sender<AudioBackendCommand>,
 	info_receiver: Receiver<AudioInfo>,
 	file_manager: FileManager,
 	playlist_manager: PlaylistManager,
@@ -66,21 +66,21 @@ impl Musicus {
 		Musicus::init_curses(&window);
 
 		// setup audio backend
-		let (command_sender, command_receiver) = unbounded();
+		let (audio_backend_sender, audio_backend_receiver) = unbounded();
         let (info_sender, info_receiver) = unbounded();
 
+		let audio_backend_sender_clone = audio_backend_sender.clone();
 
 		thread::spawn(move || {
-			let (update_sender, update_receiver) = unbounded();
-			let mut audio_backend = AudioBackend::new(info_sender, update_sender);
-			audio_backend.run(command_receiver, update_receiver);
+			let mut audio_backend = AudioBackend::new(info_sender, audio_backend_sender_clone);
+			audio_backend.run(audio_backend_receiver);
 		});
 
 		// load playlists
 		let playlists = load_playlists();
 
 		Musicus {
-            command_sender,
+			command_sender: audio_backend_sender,
             info_receiver,
 			file_manager: FileManager::new((window.get_max_y()-1) as usize, &cache.filemanager_cache),
 			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache, (window.get_max_y()-1) as usize),
@@ -146,7 +146,9 @@ impl Musicus {
 						PlayPosition::Playlist(playlist_index, song_index) => {
 							*song_index += 1;
 							if let Some(song) = self.playlist_manager.get_song(*playlist_index, *song_index) {
-								self.command_sender.send(AudioCommand::Queue(song.path.clone())).unwrap();
+								self.command_sender.send(
+									AudioBackendCommand::Command(AudioCommand::Queue(song.path.clone()))
+								).unwrap();
 							}
 						}
 						_ => {}
@@ -209,10 +211,12 @@ impl Musicus {
 
 	fn seek(&mut self, direction: SeekDirection) {
 		let duration = Duration::from_secs(5);
-		self.command_sender.send(AudioCommand::Seek(SeekCommand {
-			duration,
-			direction,
-		})).unwrap();
+		self.command_sender.send(
+			AudioBackendCommand::Command(AudioCommand::Seek(SeekCommand {
+				duration,
+				direction,
+			}))
+		).unwrap();
 		if let Some(current_song_info) = &mut self.current_song_info {
 			current_song_info.current_duration = (current_song_info.current_duration + duration).min(current_song_info.total_duration)
 		}
@@ -220,9 +224,9 @@ impl Musicus {
 
 	fn toggle_pause(&mut self) {
 		if self.play_state.playing {
-			self.command_sender.send(AudioCommand::Pause).unwrap();
+			self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Pause)).unwrap();
 		} else {
-			self.command_sender.send(AudioCommand::Unpause).unwrap();
+			self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Unpause)).unwrap();
 		}
 		self.play_state.playing = !self.play_state.playing;
 	}
@@ -233,7 +237,7 @@ impl Musicus {
 		self.play_state.play_position = PlayPosition::File(current_path);
 	}
 
-	fn play(current_song_info: &mut Option<CurrentSongInfo>, command_sender: &Sender<AudioCommand>, play_state: &mut PlayState, path: PathBuf, title: Option<String>) {
+	fn play(current_song_info: &mut Option<CurrentSongInfo>, command_sender: &Sender<AudioBackendCommand>, play_state: &mut PlayState, path: PathBuf, title: Option<String>) {
 		let title = title.unwrap_or(path.to_string_lossy().into_owned());
 
 		*current_song_info = Some(CurrentSongInfo {
@@ -242,7 +246,7 @@ impl Musicus {
 			total_duration: Duration::new(0, 0),
 		});
 
-		command_sender.send(AudioCommand::Play(path)).unwrap();
+		command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(path))).unwrap();
 		play_state.playing = true;
 	}
 

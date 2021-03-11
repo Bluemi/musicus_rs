@@ -3,7 +3,7 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use crossbeam::{Receiver, Select, Sender, SelectedOperation};
+use crossbeam::{Receiver, Sender};
 use rodio::{Sink, Source};
 
 use done_access::DoneAccess;
@@ -24,7 +24,7 @@ pub struct AudioBackend {
 	_stream: rodio::OutputStream,
 	stream_handle: rodio::OutputStreamHandle,
     info_sender: Sender<AudioInfo>, // sender for info to musicus
-	update_sender: Sender<AudioUpdate>, // internal updates for source state
+	update_sender: Sender<AudioBackendCommand>, // internal updates for source state
 	current_song: Option<CurrentSongState>, //
 }
 
@@ -109,13 +109,13 @@ pub enum AudioUpdate {
 	SongEnded(PathBuf),
 }
 
-enum CommandOrUpdate {
-	AudioCommand(AudioCommand),
-	AudioUpdate(AudioUpdate),
+pub enum AudioBackendCommand {
+	Command(AudioCommand),
+	Update(AudioUpdate),
 }
 
-impl CommandOrUpdate {
-	pub fn simplify(vec: Vec<CommandOrUpdate>) -> Vec<CommandOrUpdate> {
+impl AudioBackendCommand {
+	pub fn simplify(vec: Vec<AudioBackendCommand>) -> Vec<AudioBackendCommand> {
 		let mut result = Vec::new();
 		let mut last_play_command = None;
 		let mut last_playing_update = None;
@@ -123,7 +123,7 @@ impl CommandOrUpdate {
 
 		for command_or_update in vec.into_iter() {
 			match command_or_update {
-				CommandOrUpdate::AudioCommand(command) => {
+				AudioBackendCommand::Command(command) => {
 					match command {
 						AudioCommand::Play(play) => {
 							last_play_command = Some(play);
@@ -132,97 +132,62 @@ impl CommandOrUpdate {
 							seek_command = seek_command.map_or(Some(new_seek), |old_seek| Some(SeekCommand::join(old_seek, new_seek)))
 						}
 						command => {
-							result.push(CommandOrUpdate::AudioCommand(command));
+							result.push(AudioBackendCommand::Command(command));
 						}
 					}
 				}
-				CommandOrUpdate::AudioUpdate(update) => {
+				AudioBackendCommand::Update(update) => {
 					match update {
 						AudioUpdate::Playing(playing) => last_playing_update = Some(playing),
-						update => result.push(CommandOrUpdate::AudioUpdate(update)),
+						update => result.push(AudioBackendCommand::Update(update)),
 					}
 				}
 			}
 		}
 		if let Some(play_command) = last_play_command {
-			result.push(CommandOrUpdate::AudioCommand(AudioCommand::Play(play_command)));
+			result.push(AudioBackendCommand::Command(AudioCommand::Play(play_command)));
 		}
 		if let Some(playing_update) = last_playing_update {
-			result.push(CommandOrUpdate::AudioUpdate(AudioUpdate::Playing(playing_update)))
+			result.push(AudioBackendCommand::Update(AudioUpdate::Playing(playing_update)))
 		}
 		if let Some(seek_command) = seek_command {
-			result.push(CommandOrUpdate::AudioCommand(AudioCommand::Seek(seek_command)));
+			result.push(AudioBackendCommand::Command(AudioCommand::Seek(seek_command)));
 		}
 		result
 	}
 }
 
 impl AudioBackend {
-	pub fn new(info_sender: Sender<AudioInfo>, update_sender: Sender<AudioUpdate>) -> AudioBackend {
+	pub fn new(info_sender: Sender<AudioInfo>, audio_backend_sender: Sender<AudioBackendCommand>) -> AudioBackend {
 		let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
 		AudioBackend {
 			sink: rodio::Sink::try_new(&stream_handle).unwrap(),
 			_stream: stream,
 			stream_handle,
 			info_sender,
-			update_sender,
+			update_sender: audio_backend_sender,
 			current_song: None,
 		}
 	}
 
-	pub fn run(&mut self, command_receiver: Receiver<AudioCommand>, update_receiver: Receiver<AudioUpdate>) {
-		let mut select = Select::new();
-		let command_index = select.recv(&command_receiver);
-		let update_index = select.recv(&update_receiver);
-
+	pub fn run(&mut self, audio_backend_receiver: Receiver<AudioBackendCommand>) {
 		loop {
-			let mut commands = Vec::new();
+			let command = match audio_backend_receiver.recv() {
+				Ok(command) => command,
+				Err(_) => break,
+			};
 
-			let oper = select.select();
-			if !AudioBackend::add_command(&command_receiver, &update_receiver, command_index, update_index, &mut commands, oper) {
-				break;
-			}
-
-			// first try to select further commands or updates
-			match select.try_select() {
-				Ok(oper) => {
-					if !AudioBackend::add_command(&command_receiver, &update_receiver, command_index, update_index, &mut commands, oper) {
-						break;
-					}
-				}
-				Err(_) => {} // no further messages
-			}
-
-			let commands = CommandOrUpdate::simplify(commands);
-
-			for command_or_update in commands.into_iter() {
-				match command_or_update {
-					CommandOrUpdate::AudioCommand(command) => self.handle_command(command),
-					CommandOrUpdate::AudioUpdate(update) => self.handle_update(update),
-				}
-			}
-		}
-	}
-
-	fn add_command(command_receiver: &Receiver<AudioCommand>, update_receiver: &Receiver<AudioUpdate>, command_index: usize, update_index: usize, commands: &mut Vec<CommandOrUpdate>, oper: SelectedOperation) -> bool {
-		match oper.index() {
-			i if i == command_index => {
-				let command = oper.recv(&command_receiver);
+			let mut commands = vec![command];
+			commands.extend(audio_backend_receiver.try_iter());
+			let commands = AudioBackendCommand::simplify(commands);
+			for command in commands.into_iter() {
 				match command {
-					Ok(command) => commands.push(CommandOrUpdate::AudioCommand(command)),
-					Err(_) => return false,
+					AudioBackendCommand::Command(command) => self.handle_command(command),
+					AudioBackendCommand::Update(update) => self.handle_update(update),
 				}
-			},
-			i if i == update_index => {
-				let update = oper.recv(&update_receiver);
-				match update {
-					Ok(update) => commands.push(CommandOrUpdate::AudioUpdate(update)),
-					Err(_) => return false,
-				}
-			},
-			_ => unreachable!(),
+			}
 		}
-		true
+
 	}
 
 	fn handle_command(&mut self, command: AudioCommand) {
@@ -288,7 +253,7 @@ impl AudioBackend {
 	fn play(
 		sink: &mut Sink,
 		stream_handle: &rodio::OutputStreamHandle,
-		update_sender: &Sender<AudioUpdate>,
+		update_sender: &Sender<AudioBackendCommand>,
 		info_sender: &Sender<AudioInfo>,
 		path: &Path,
 		skip: Option<Duration>,
@@ -303,7 +268,7 @@ impl AudioBackend {
 
 	fn queue(
 		sink: &mut Sink,
-		orig_update_sender: &Sender<AudioUpdate>,
+		orig_update_sender: &Sender<AudioBackendCommand>,
 		info_sender: &Sender<AudioInfo>,
 		path: &Path,
 		skip: Option<Duration>,
@@ -317,7 +282,11 @@ impl AudioBackend {
 						let path_buf = path.to_path_buf();
 						let start_access_source = StartAccess::new(
 							decoder,
-							move || update_sender.send(AudioUpdate::SongStarts(path_buf.clone(), total_duration, skip.unwrap_or(Duration::new(0, 0)))).unwrap(),
+							move || update_sender.send(
+								AudioBackendCommand::Update(AudioUpdate::SongStarts(
+									path_buf.clone(), total_duration, skip.unwrap_or(Duration::new(0, 0))
+								))
+							).unwrap(),
 						);
 
 						// add playing info
@@ -326,13 +295,13 @@ impl AudioBackend {
 						let periodic_access_source = PeriodicAccess::new(
 							start_access_source,
 							move |s| update_sender.send(
-								AudioUpdate::Playing(
+								AudioBackendCommand::Update(AudioUpdate::Playing(
 									PlayingUpdate {
 										song_path: path_buf.clone(),
 										duration_left: s.total_duration().unwrap_or(Duration::new(0, 0)),
 									}
 								)
-							).unwrap(),
+								)).unwrap(),
 							UPDATE_DURATION
 						);
 
@@ -341,7 +310,9 @@ impl AudioBackend {
 						let path_buf = path.to_path_buf();
 						let done_access_source = DoneAccess::new(
 							periodic_access_source,
-							move |_| update_sender.send(AudioUpdate::SongEnded(path_buf.clone())).unwrap(),
+							move |_| update_sender.send(
+								AudioBackendCommand::Update(AudioUpdate::SongEnded(path_buf.clone()))
+							).unwrap(),
 						);
 
 						if let Some(duration) = skip {
