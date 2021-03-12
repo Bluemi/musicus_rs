@@ -330,7 +330,7 @@ impl AudioBackend {
 					info_sender.send(AudioInfo::FailedOpen(path.to_path_buf())).unwrap();
 				}
 			}
-			Err(_) => {}
+			Err(_) => info_sender.send(AudioInfo::FailedOpen(path.to_path_buf())).unwrap(),
 		}
 	}
 
