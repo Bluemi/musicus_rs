@@ -5,6 +5,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use serde::{Serialize, Deserialize};
 use crate::config::PlaylistManagerCache;
+use crate::musicus::PlayState;
 
 pub struct PlaylistManager {
 	pub current_playlist: usize,
@@ -115,24 +116,35 @@ impl PlaylistManager {
 			}
 		}
 	}
-}
 
-impl Renderable for PlaylistManager {
-	fn get_render_object(&self) -> RenderObject {
+	fn get_render_object(&self, play_state: &PlayState) -> RenderObject {
 		let mut render_object = RenderObject::new();
 
 		// add overview panel
 		let mut overview_panel = RenderPanel::new(0);
 		for (index, playlist) in self.playlists.iter().enumerate() {
-			let (foreground_color, background_color) = if index == self.current_playlist {
-				if matches!(self.view, PlaylistView::Overview) {
-					(RenderColor::WHITE, RenderColor::BLUE)
+			let (foreground_color, background_color) = if index == play_state.is_playlist_current(index) {
+				if index == self.current_playlist {
+					if matches!(self.view, PlaylistView::Overview) {
+						(RenderColor::YELLOW, RenderColor::BLUE)
+					} else {
+						(RenderColor::BLACK, RenderColor::WHITE)
+					}
 				} else {
-					(RenderColor::BLACK, RenderColor::WHITE)
-				}
+					(RenderColor::YELLOW, RenderColor::BLACK)
+				};
 			} else {
-				(RenderColor::WHITE, RenderColor::BLACK)
-			};
+				if index == self.current_playlist {
+					if matches!(self.view, PlaylistView::Overview) {
+						(RenderColor::WHITE, RenderColor::BLUE)
+					} else {
+						(RenderColor::BLACK, RenderColor::WHITE)
+					}
+				} else {
+					(RenderColor::WHITE, RenderColor::BLACK)
+				};
+			}
+
 			overview_panel.entries.push(RenderEntry::new(playlist.name.clone(), foreground_color, background_color));
 		}
 		render_object.panels.push(overview_panel);

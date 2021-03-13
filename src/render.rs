@@ -1,4 +1,4 @@
-use pancurses::{COLOR_WHITE, COLOR_BLACK, COLOR_BLUE, COLOR_CYAN};
+use pancurses::{COLOR_WHITE, COLOR_BLACK, COLOR_BLUE, COLOR_CYAN, COLOR_YELLOW};
 use std::time::Duration;
 
 pub struct RenderObject {
@@ -22,6 +22,7 @@ pub enum RenderColor {
 	WHITE,
 	BLUE,
 	CYAN,
+	YELLOW,
 }
 
 pub trait Renderable {
@@ -74,6 +75,7 @@ impl RenderColor {
 			RenderColor::WHITE => COLOR_WHITE,
 			RenderColor::BLUE => COLOR_BLUE,
 			RenderColor::CYAN => COLOR_CYAN,
+			RenderColor::YELLOW => COLOR_YELLOW,
 		}
 	}
 }

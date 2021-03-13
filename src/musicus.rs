@@ -37,12 +37,30 @@ struct CurrentSongInfo {
 	total_duration: Duration,
 }
 
-struct PlayState {
+pub struct PlayState {
 	playing: bool,
 	play_position: PlayPosition,
 }
 
-enum PlayPosition {
+impl PlayState {
+	pub fn is_playlist_current(&self, playlist_index: usize) -> bool {
+		if let PlayPosition::Playlist(playlist, _) = self.play_position {
+			playlist_index == playlist
+		} else {
+			false
+		}
+	}
+
+	pub fn is_song_current(&self, playlist_index: usize, song_index: usize) -> bool {
+		if let PlayPosition::Playlist(playlist, song) = self.play_position {
+			playlist_index == playlist && song_index == song
+		} else {
+			false
+		}
+	}
+}
+
+pub enum PlayPosition {
 	Empty,
 	File(PathBuf),
 	Playlist(usize, usize), // playlist index, song index
