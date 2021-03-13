@@ -277,7 +277,7 @@ impl Musicus {
 				ViewState::FileManager => self.file_manager.get_render_object(),
 				ViewState::Playlists => self.playlist_manager.get_render_object(),
 			};
-			self.window.clear();
+			self.window.erase();
 			self.render_panels(&render_object);
 		}
 		self.render_play_state();
