@@ -1,4 +1,4 @@
-use crate::render::{Renderable, RenderObject, RenderPanel, RenderEntry, RenderColor};
+use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::path::{Path, PathBuf};
 use crate::file_manager::file_utils::{get_dir_entries, DirectoryEntry, get_common_ends};
 use std::fs::{File, OpenOptions};
@@ -117,22 +117,22 @@ impl PlaylistManager {
 		}
 	}
 
-	fn get_render_object(&self, play_state: &PlayState) -> RenderObject {
+	pub fn get_render_object(&self, play_state: &PlayState) -> RenderObject {
 		let mut render_object = RenderObject::new();
 
 		// add overview panel
 		let mut overview_panel = RenderPanel::new(0);
 		for (index, playlist) in self.playlists.iter().enumerate() {
-			let (foreground_color, background_color) = if index == play_state.is_playlist_current(index) {
+			let (foreground_color, background_color) = if play_state.is_playlist_current(index) {
 				if index == self.current_playlist {
 					if matches!(self.view, PlaylistView::Overview) {
 						(RenderColor::YELLOW, RenderColor::BLUE)
 					} else {
-						(RenderColor::BLACK, RenderColor::WHITE)
+						(RenderColor::YELLOW, RenderColor::WHITE)
 					}
 				} else {
 					(RenderColor::YELLOW, RenderColor::BLACK)
-				};
+				}
 			} else {
 				if index == self.current_playlist {
 					if matches!(self.view, PlaylistView::Overview) {
@@ -142,8 +142,8 @@ impl PlaylistManager {
 					}
 				} else {
 					(RenderColor::WHITE, RenderColor::BLACK)
-				};
-			}
+				}
+			};
 
 			overview_panel.entries.push(RenderEntry::new(playlist.name.clone(), foreground_color, background_color));
 		}
@@ -153,14 +153,26 @@ impl PlaylistManager {
 		if let Some(current_playlist) = self.playlists.get(self.current_playlist) {
 			let mut panel = RenderPanel::new(0);
 			for (index, song) in current_playlist.songs.iter().enumerate() {
-				let (foreground_color, background_color) = if index == current_playlist.cursor_position {
-					if matches!(self.view, PlaylistView::Playlist) {
-						(RenderColor::WHITE, RenderColor::BLUE)
+				let (foreground_color, background_color) = if play_state.is_song_current(self.current_playlist, index) {
+					if index == current_playlist.cursor_position {
+						if matches!(self.view, PlaylistView::Playlist) {
+							(RenderColor::YELLOW, RenderColor::BLUE)
+						} else {
+							(RenderColor::YELLOW, RenderColor::WHITE)
+						}
 					} else {
-						(RenderColor::BLACK, RenderColor::WHITE)
+						(RenderColor::YELLOW, RenderColor::BLACK)
 					}
 				} else {
-					(RenderColor::WHITE, RenderColor::BLACK)
+					if index == current_playlist.cursor_position {
+						if matches!(self.view, PlaylistView::Playlist) {
+							(RenderColor::WHITE, RenderColor::BLUE)
+						} else {
+							(RenderColor::BLACK, RenderColor::WHITE)
+						}
+					} else {
+						(RenderColor::WHITE, RenderColor::BLACK)
+					}
 				};
 				panel.entries.push(RenderEntry::new(song.title.clone(), foreground_color, background_color));
                 panel.scroll_position = current_playlist.scroll_position;

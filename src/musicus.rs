@@ -293,7 +293,7 @@ impl Musicus {
 		if everything {
 			let render_object = match self.view_state {
 				ViewState::FileManager => self.file_manager.get_render_object(),
-				ViewState::Playlists => self.playlist_manager.get_render_object(),
+				ViewState::Playlists => self.playlist_manager.get_render_object(&self.play_state),
 			};
 			self.window.erase();
 			self.render_panels(&render_object);
