@@ -29,12 +29,12 @@ pub struct Musicus {
 	color_pair_counter: i16,
 	play_state: PlayState,
 	view_state: ViewState,
-	current_song_info: Option<CurrentSongInfo>,
+	playing_song_info: Option<SongInfo>,
 }
 
-struct CurrentSongInfo {
+struct SongInfo {
 	title: String,
-	current_duration: Duration,
+	play_position: Duration,
 	total_duration: Duration,
 }
 
@@ -79,7 +79,7 @@ impl Musicus {
 			color_pair_counter: 1,
 			play_state: PlayState::new(),
 			view_state: cache.view,
-			current_song_info: None,
+			playing_song_info: None,
 		}
 	}
 
@@ -127,8 +127,8 @@ impl Musicus {
 		for info in self.info_receiver.try_iter() {
 			match info {
 				AudioInfo::Playing(_, duration) => {
-					if let Some(current_song) = &mut self.current_song_info {
-						current_song.current_duration = duration;
+					if let Some(playing_song) = &mut self.playing_song_info {
+						playing_song.play_position = duration;
 					}
 				}
 				AudioInfo::SongEndsSoon(_, _) => {
@@ -145,9 +145,9 @@ impl Musicus {
 					log(&format!("song ended: {:?}\n", path));
 				}
 				AudioInfo::SongStarts(_path, total_duration, start_duration) => {
-					if let Some(current_song_info) = &mut self.current_song_info {
-						current_song_info.total_duration = total_duration;
-						current_song_info.current_duration = start_duration;
+					if let Some(playing_song) = &mut self.playing_song_info {
+						playing_song.total_duration = total_duration;
+						playing_song.play_position = start_duration;
 						// TODO: set name of song
 					}
 					has_to_render = true;
@@ -205,8 +205,8 @@ impl Musicus {
 				direction,
 			}))
 		).unwrap();
-		if let Some(current_song_info) = &mut self.current_song_info {
-			current_song_info.current_duration = (current_song_info.current_duration + duration).min(current_song_info.total_duration)
+		if let Some(playing_song) = &mut self.playing_song_info {
+			playing_song.play_position = (playing_song.play_position + duration).min(playing_song.total_duration)
 		}
 	}
 
@@ -221,16 +221,16 @@ impl Musicus {
 
 	fn filemanager_context_action(&mut self) {
 		let current_path = self.file_manager.current_path.clone();
-		Self::play(&mut self.current_song_info, &self.command_sender, &mut self.play_state, current_path.clone(), None);
+		Self::play(&mut self.playing_song_info, &self.command_sender, &mut self.play_state, current_path.clone(), None);
 		self.play_state.play_position = PlayPosition::File(current_path);
 	}
 
-	fn play(current_song_info: &mut Option<CurrentSongInfo>, command_sender: &Sender<AudioBackendCommand>, play_state: &mut PlayState, path: PathBuf, title: Option<String>) {
+	fn play(playing_song_info: &mut Option<SongInfo>, command_sender: &Sender<AudioBackendCommand>, play_state: &mut PlayState, path: PathBuf, title: Option<String>) {
 		let title = title.unwrap_or(path.to_string_lossy().into_owned());
 
-		*current_song_info = Some(CurrentSongInfo {
+		*playing_song_info = Some(SongInfo {
 			title,
-			current_duration: Duration::new(0, 0),
+			play_position: Duration::new(0, 0),
 			total_duration: Duration::new(0, 0),
 		});
 
@@ -239,9 +239,9 @@ impl Musicus {
 	}
 
 	fn playlist_manager_context_action(&mut self) {
-        if let Some(song) = self.playlist_manager.get_current_song() {
-			Self::play(&mut self.current_song_info, &self.command_sender, &mut self.play_state, song.path.clone(), Some(song.title.clone()));
-			self.play_state.play_position = PlayPosition::Playlist(self.playlist_manager.current_playlist, self.playlist_manager.get_current_playlist().unwrap().cursor_position);
+        if let Some(song) = self.playlist_manager.get_shown_song() {
+			Self::play(&mut self.playing_song_info, &self.command_sender, &mut self.play_state, song.path.clone(), Some(song.title.clone()));
+			self.play_state.play_position = PlayPosition::Playlist(self.playlist_manager.shown_playlist_index, self.playlist_manager.get_shown_playlist().unwrap().cursor_position);
 		}
 	}
 
@@ -282,7 +282,7 @@ impl Musicus {
 
 	fn render_play_state(&mut self) {
 		self.set_color(RenderColor::BLACK, RenderColor::CYAN);
-		if let Some(current_song) = &self.current_song_info {
+		if let Some(current_song) = &self.playing_song_info {
 			self.window.mv(self.window.get_max_y() - 1, 0);
 			self.window.hline(' ', self.window.get_max_x());
 			let play_mode_str = match self.play_state.mode {
@@ -296,7 +296,7 @@ impl Musicus {
 					" {} {}  {} / {}",
 					play_mode_str,
 					current_song.title,
-					format_duration(current_song.current_duration),
+					format_duration(current_song.play_position),
 					format_duration(current_song.total_duration)
 				),
 			);

@@ -1,5 +1,4 @@
 # Todo
 
-- shuffle
-- differentiate "current" between "played" and "shown"
+- Audio Backend should buffer songs before playing
 - Work with playlists

@@ -19,7 +19,7 @@ impl PlayState {
 		}
 	}
 
-	pub fn is_playlist_current(&self, playlist_index: usize) -> bool {
+	pub fn is_playlist_played(&self, playlist_index: usize) -> bool {
 		if let PlayPosition::Playlist(playlist, _) = self.play_position {
 			playlist_index == playlist
 		} else {
@@ -27,7 +27,7 @@ impl PlayState {
 		}
 	}
 
-	pub fn is_song_current(&self, playlist_index: usize, song_index: usize) -> bool {
+	pub fn is_song_played(&self, playlist_index: usize, song_index: usize) -> bool {
 		if let PlayPosition::Playlist(playlist, song) = self.play_position {
 			playlist_index == playlist && song_index == song
 		} else {

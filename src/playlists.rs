@@ -8,7 +8,7 @@ use crate::config::PlaylistManagerCache;
 use crate::play_state::PlayState;
 
 pub struct PlaylistManager {
-	pub current_playlist: usize,
+	pub shown_playlist_index: usize,
 	pub playlists: Vec<Playlist>,
 	pub view: PlaylistView,
 	pub num_rows: usize,
@@ -37,7 +37,7 @@ pub enum PlaylistView {
 impl PlaylistManager {
 	pub fn new(playlists: Vec<Playlist>, cache: &PlaylistManagerCache, num_rows: usize) -> PlaylistManager {
 		PlaylistManager {
-			current_playlist: 0,
+			shown_playlist_index: 0,
 			playlists,
 			view: cache.view,
 			num_rows,
@@ -45,18 +45,18 @@ impl PlaylistManager {
 	}
 
 	pub fn add_songs(&mut self, songs: Vec<Song>) {
-		if let Some(current_playlist) = self.get_current_playlist() {
-			current_playlist.songs.extend(songs);
+		if let Some(shown_playlist) = self.get_shown_playlist() {
+			shown_playlist.songs.extend(songs);
 		}
 	}
 
-	pub fn get_current_playlist(&mut self) -> Option<&mut Playlist> {
-		self.playlists.get_mut(self.current_playlist)
+	pub fn get_shown_playlist(&mut self) -> Option<&mut Playlist> {
+		self.playlists.get_mut(self.shown_playlist_index)
 	}
 
-	pub fn get_current_song(&mut self) -> Option<&mut Song> {
-		if let Some(current_playlist) = self.get_current_playlist() {
-			return current_playlist.songs.get_mut(current_playlist.cursor_position);
+	pub fn get_shown_song(&mut self) -> Option<&mut Song> {
+		if let Some(shown_playlist) = self.get_shown_playlist() {
+			return shown_playlist.songs.get_mut(shown_playlist.cursor_position);
 		}
 		None
 	}
@@ -82,12 +82,12 @@ impl PlaylistManager {
         let num_rows = self.num_rows as i32;
 		match self.view {
 			PlaylistView::Overview => {
-				if self.current_playlist < self.playlists.len() - 1 {
-					self.current_playlist += 1;
+				if self.shown_playlist_index < self.playlists.len() - 1 {
+					self.shown_playlist_index += 1;
 				}
 			}
 			PlaylistView::Playlist => {
-				if let Some(playlist) = self.get_current_playlist() {
+				if let Some(playlist) = self.get_shown_playlist() {
 					if playlist.cursor_position < playlist.songs.len() - 1 {
 						playlist.cursor_position += 1;
 						playlist.scroll_position = (playlist.scroll_position as i32).max(playlist.cursor_position as i32-num_rows + 1) as usize;
@@ -100,12 +100,12 @@ impl PlaylistManager {
 	pub fn move_up(&mut self) {
 		match self.view {
 			PlaylistView::Overview => {
-				if self.current_playlist > 0 {
-					self.current_playlist -= 1;
+				if self.shown_playlist_index > 0 {
+					self.shown_playlist_index -= 1;
 				}
 			}
 			PlaylistView::Playlist => {
-				if let Some(playlist) = self.get_current_playlist() {
+				if let Some(playlist) = self.get_shown_playlist() {
 					if playlist.cursor_position > 0 {
 						playlist.cursor_position -= 1;
 						if playlist.scroll_position > playlist.cursor_position {
@@ -123,8 +123,8 @@ impl PlaylistManager {
 		// add overview panel
 		let mut overview_panel = RenderPanel::new(0);
 		for (index, playlist) in self.playlists.iter().enumerate() {
-			let (foreground_color, background_color) = if play_state.is_playlist_current(index) {
-				if index == self.current_playlist {
+			let (foreground_color, background_color) = if play_state.is_playlist_played(index) {
+				if index == self.shown_playlist_index {
 					if matches!(self.view, PlaylistView::Overview) {
 						(RenderColor::YELLOW, RenderColor::BLUE)
 					} else {
@@ -134,7 +134,7 @@ impl PlaylistManager {
 					(RenderColor::YELLOW, RenderColor::BLACK)
 				}
 			} else {
-				if index == self.current_playlist {
+				if index == self.shown_playlist_index {
 					if matches!(self.view, PlaylistView::Overview) {
 						(RenderColor::WHITE, RenderColor::BLUE)
 					} else {
@@ -149,12 +149,12 @@ impl PlaylistManager {
 		}
 		render_object.panels.push(overview_panel);
 
-		// add current playlist
-		if let Some(current_playlist) = self.playlists.get(self.current_playlist) {
+		// add shown playlist
+		if let Some(playlist) = self.playlists.get(self.shown_playlist_index) {
 			let mut panel = RenderPanel::new(0);
-			for (index, song) in current_playlist.songs.iter().enumerate() {
-				let (foreground_color, background_color) = if play_state.is_song_current(self.current_playlist, index) {
-					if index == current_playlist.cursor_position {
+			for (index, song) in playlist.songs.iter().enumerate() {
+				let (foreground_color, background_color) = if play_state.is_song_played(self.shown_playlist_index, index) {
+					if index == playlist.cursor_position {
 						if matches!(self.view, PlaylistView::Playlist) {
 							(RenderColor::YELLOW, RenderColor::BLUE)
 						} else {
@@ -164,7 +164,7 @@ impl PlaylistManager {
 						(RenderColor::YELLOW, RenderColor::BLACK)
 					}
 				} else {
-					if index == current_playlist.cursor_position {
+					if index == playlist.cursor_position {
 						if matches!(self.view, PlaylistView::Playlist) {
 							(RenderColor::WHITE, RenderColor::BLUE)
 						} else {
@@ -175,7 +175,7 @@ impl PlaylistManager {
 					}
 				};
 				panel.entries.push(RenderEntry::new(song.title.clone(), foreground_color, background_color));
-                panel.scroll_position = current_playlist.scroll_position;
+                panel.scroll_position = playlist.scroll_position;
 			}
 			render_object.panels.push(panel);
 		}
