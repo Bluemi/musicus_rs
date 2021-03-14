@@ -12,7 +12,7 @@ use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, 
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 use std::time::Duration;
-use crate::play_state::{PlayPosition, PlayState};
+use crate::play_state::{PlayPosition, PlayState, PlayMode};
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -285,11 +285,16 @@ impl Musicus {
 		if let Some(current_song) = &self.current_song_info {
 			self.window.mv(self.window.get_max_y() - 1, 0);
 			self.window.hline(' ', self.window.get_max_x());
+			let play_mode_str = match self.play_state.mode {
+				PlayMode::Normal => " ",
+				PlayMode::Shuffle => "S",
+			};
 			self.window.mvaddstr(
 				self.window.get_max_y()-1,
 				0,
 				format!(
-					"{}  {} / {}",
+					" {} {}  {} / {}",
+					play_mode_str,
 					current_song.title,
 					format_duration(current_song.current_duration),
 					format_duration(current_song.total_duration)
