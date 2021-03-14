@@ -12,6 +12,7 @@ dirs = "3.0"
 serde_json = "1.0"
 serde = "1.0"
 crossbeam = "0.7.1"
+random = "0.12.2"
 
 [dependencies.pancurses]
 version = "0.16.1"

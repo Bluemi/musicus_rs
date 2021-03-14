@@ -10,6 +10,7 @@ mod render;
 mod audio_backend;
 mod playlists;
 mod config;
+mod play_state;
 
 fn main() {
 	let mut musicus = Musicus::new();

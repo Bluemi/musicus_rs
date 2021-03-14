@@ -5,7 +5,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use serde::{Serialize, Deserialize};
 use crate::config::PlaylistManagerCache;
-use crate::musicus::PlayState;
+use crate::play_state::PlayState;
 
 pub struct PlaylistManager {
 	pub current_playlist: usize,
@@ -22,7 +22,7 @@ pub struct Playlist {
 	pub scroll_position: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Song {
 	pub title: String,
 	pub path: PathBuf,
