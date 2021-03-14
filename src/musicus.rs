@@ -116,13 +116,14 @@ impl Musicus {
 		self.render(true);
 		while running {
 			let got_input = self.handle_input(&mut running);
-			self.handle_audio_backend();
-			self.render(got_input);
+			let got_update = self.handle_audio_backend();
+			self.render(got_input || got_update);
 		}
 		self.shutdown();
 	}
 
-	fn handle_audio_backend(&mut self) {
+	fn handle_audio_backend(&mut self) -> bool {
+		let mut has_to_render = false;
 		for info in self.info_receiver.try_iter() {
 			match info {
 				AudioInfo::Playing(_, duration) => {
@@ -147,12 +148,15 @@ impl Musicus {
 					if let Some(current_song_info) = &mut self.current_song_info {
 						current_song_info.total_duration = total_duration;
 						current_song_info.current_duration = start_duration;
+						// TODO: set name of song
 					}
+					has_to_render = true;
 					log(&format!("start update: {:?}\n", start_duration));
 				}
 				_ => {}
 			}
 		}
+		has_to_render
 	}
 
 	fn handle_input(&mut self, running: &mut bool) -> bool {
