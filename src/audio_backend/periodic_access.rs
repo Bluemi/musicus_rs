@@ -1,17 +1,20 @@
 use rodio::{Source, Sample};
 use std::time::Duration;
+use crate::musicus::log;
 
 pub struct PeriodicAccess<S, F> {
 	source: S,
 	modifier: F,
 	update_frequency: u32,
 	samples_until_update: u32,
+	duration_played: Duration,
+	period: Duration,
 }
 
 impl<S, F> PeriodicAccess<S, F>
 where S: Source,
 	  S::Item: Sample,
-	  F: FnMut(&mut S),
+	  F: FnMut(&mut S, Duration),
 {
 	pub fn new(source: S, modifier: F, period: Duration) -> PeriodicAccess<S, F> {
 		let update_frequency = (period.as_secs_f64() * source.sample_rate() as f64) as u32;
@@ -21,6 +24,8 @@ where S: Source,
 			modifier,
 			update_frequency,
 			samples_until_update: 1,
+			duration_played: Duration::new(0, 0),
+			period,
 		}
 	}
 }
@@ -28,7 +33,7 @@ where S: Source,
 impl<S, F> Iterator for PeriodicAccess<S, F>
 where S: Source,
 	  S::Item: Sample,
-	  F: FnMut(&mut S),
+	  F: FnMut(&mut S, Duration),
 {
 	type Item = S::Item;
 
@@ -38,7 +43,8 @@ where S: Source,
 
 		self.samples_until_update -= 1;
 		if self.samples_until_update == 0 {
-			(self.modifier)(&mut self.source);
+			(self.modifier)(&mut self.source, self.duration_played);
+			self.duration_played += self.period;
 			self.samples_until_update = self.update_frequency;
 		}
 
@@ -49,7 +55,7 @@ where S: Source,
 impl<S, F> Source for PeriodicAccess<S, F>
 where S: Source,
       S::Item: Sample,
-	  F: FnMut(&mut S),
+	  F: FnMut(&mut S, Duration),
 {
 	fn current_frame_len(&self) -> Option<usize> {
 		self.source.current_frame_len()

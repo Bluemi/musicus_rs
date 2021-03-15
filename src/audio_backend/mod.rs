@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -11,10 +9,13 @@ use periodic_access::PeriodicAccess;
 use start_access::StartAccess;
 
 use crate::musicus::log;
+use crate::audio_backend::audio_buffer::AudioBuffer;
+use std::ops::Deref;
 
 mod done_access;
 mod start_access;
 mod periodic_access;
+mod audio_buffer;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(100);
 const SONG_ENDS_SOON_OFFSET: Duration = Duration::from_millis(2000);
@@ -26,6 +27,7 @@ pub struct AudioBackend {
     info_sender: Sender<AudioInfo>, // sender for info to musicus
 	update_sender: Sender<AudioBackendCommand>, // internal updates for source state
 	current_song: Option<CurrentSongState>, //
+	audio_buffer: AudioBuffer,
 }
 
 struct CurrentSongState {
@@ -91,7 +93,7 @@ pub enum AudioInfo {
 	Playing(PathBuf, Duration), // playing song, play duration
 	Queued(PathBuf),
 	SongStarts(PathBuf, Duration, Duration),
-	SongEndsSoon(PathBuf, Duration),
+	SongEndsSoon(PathBuf, Duration), // path, duration played
 	FailedOpen(PathBuf),
 	SongEnded(PathBuf),
 }
@@ -99,7 +101,7 @@ pub enum AudioInfo {
 #[derive(Debug)]
 pub struct PlayingUpdate {
 	song_path: PathBuf,
-	duration_left: Duration,
+	duration_played: Duration,
 }
 
 #[derive(Debug)]
@@ -167,6 +169,7 @@ impl AudioBackend {
 			info_sender,
 			update_sender: audio_backend_sender,
 			current_song: None,
+			audio_buffer: AudioBuffer::new(),
 		}
 	}
 
@@ -192,8 +195,8 @@ impl AudioBackend {
 
 	fn handle_command(&mut self, command: AudioCommand) {
 		match command {
-			AudioCommand::Play(path) => Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &path, None),
-			AudioCommand::Queue(path) => Self::queue(&mut self.sink, &self.update_sender, &self.info_sender, &path, None),
+			AudioCommand::Play(path) => Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &path, None, &self.audio_buffer),
+			AudioCommand::Queue(path) => Self::queue(&mut self.sink, &self.update_sender, &self.info_sender, &path, None, &self.audio_buffer),
 			AudioCommand::Pause => self.pause(),
 			AudioCommand::Unpause => self.unpause(),
 			AudioCommand::Seek(seek_command) => self.seek(seek_command),
@@ -205,11 +208,12 @@ impl AudioBackend {
 			AudioUpdate::Playing(playing_update) => {
 				if let Some(current_song) = &mut self.current_song {
 					assert_eq!(current_song.path, playing_update.song_path);
-					if !current_song.sent_song_ends_soon && playing_update.duration_left <= SONG_ENDS_SOON_OFFSET {
-						self.info_sender.send(AudioInfo::SongEndsSoon(playing_update.song_path.clone(), playing_update.duration_left)).unwrap();
+					if !current_song.sent_song_ends_soon && (current_song.total_duration.checked_sub(playing_update.duration_played).unwrap_or(Duration::new(0, 0))) <= SONG_ENDS_SOON_OFFSET {
+						self.info_sender.send(AudioInfo::SongEndsSoon(playing_update.song_path.clone(), playing_update.duration_played)).unwrap();
 						current_song.sent_song_ends_soon = true;
 					}
-					current_song.set_real_play_duration(current_song.total_duration - playing_update.duration_left);
+					current_song.set_real_play_duration(playing_update.duration_played);
+					// log(&format!("send playing: duration_left: {:?}, total_duration: {:?}\n", playing_update.duration_played, current_song.total_duration));
 					self.info_sender.send(AudioInfo::Playing(playing_update.song_path.clone(), current_song.get_real_play_duration())).unwrap();
 				} else {
 					log(&format!("ERROR: current song is None, but got Playing update\n"));
@@ -244,7 +248,7 @@ impl AudioBackend {
 				}
 			};
 			current_song.play_duration = Duration::new(0, 0);
-			Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &current_song.path, Some(current_song.get_real_play_duration()));
+			Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &current_song.path, Some(current_song.get_real_play_duration()), &self.audio_buffer);
 		}
 	}
 
@@ -255,12 +259,13 @@ impl AudioBackend {
 		info_sender: &Sender<AudioInfo>,
 		path: &Path,
 		skip: Option<Duration>,
+		audio_buffer: &AudioBuffer,
 	) {
 		if !sink.empty() {
 			sink.stop();
 			*sink = rodio::Sink::try_new(stream_handle).unwrap();
 		}
-		Self::queue(sink, update_sender, info_sender, &path, skip);
+		Self::queue(sink, update_sender, info_sender, &path, skip, audio_buffer);
 		sink.play();
 	}
 
@@ -270,65 +275,58 @@ impl AudioBackend {
 		info_sender: &Sender<AudioInfo>,
 		path: &Path,
 		skip: Option<Duration>,
+		audio_buffer: &AudioBuffer,
 	) {
-		match File::open(path) {
-			Ok(file) => {
-				if let Ok(decoder) = rodio::Decoder::new(BufReader::new(file)) {
-					if let Some(total_duration) = decoder.total_duration() {
-						// add start info
-						let update_sender = orig_update_sender.clone();
-						let path_buf = path.to_path_buf();
-						let start_access_source = StartAccess::new(
-							decoder,
-							move || update_sender.send(
-								AudioBackendCommand::Update(AudioUpdate::SongStarts(
-									path_buf.clone(), total_duration, skip.unwrap_or(Duration::new(0, 0))
-								))
-							).unwrap(),
-						);
+		let song_buffer = audio_buffer.get(path);
+		if let Some(total_duration) = song_buffer.total_duration() {
+			// add start info
+			let update_sender = orig_update_sender.clone();
+			let path_buf = path.to_path_buf();
+			let start_access_source = StartAccess::new(
+				song_buffer,
+				move || update_sender.send(
+					AudioBackendCommand::Update(AudioUpdate::SongStarts(
+						path_buf.clone(), total_duration, skip.unwrap_or(Duration::new(0, 0))
+					))
+				).unwrap(),
+			);
 
-						// add playing info
-						let update_sender = orig_update_sender.clone();
-						let path_buf = path.to_path_buf();
-						let periodic_access_source = PeriodicAccess::new(
-							start_access_source,
-							move |s| update_sender.send(
-								AudioBackendCommand::Update(AudioUpdate::Playing(
-									PlayingUpdate {
-										song_path: path_buf.clone(),
-										duration_left: s.total_duration().unwrap_or(Duration::new(0, 0)),
-									}
-								)
-								)).unwrap(),
-							UPDATE_DURATION
-						);
+			// add playing info
+			let update_sender = orig_update_sender.clone();
+			let path_buf = path.to_path_buf();
+			let periodic_access_source = PeriodicAccess::new(
+				start_access_source,
+				move |s, d| {
+					update_sender.send(
+						AudioBackendCommand::Update(AudioUpdate::Playing(
+							PlayingUpdate {
+								song_path: path_buf.clone(),
+								duration_played: d,
+							}
+						)
+					)).unwrap();
+				},
+				UPDATE_DURATION
+			);
 
-						// add done info
-						let update_sender = orig_update_sender.clone();
-						let path_buf = path.to_path_buf();
-						let done_access_source = DoneAccess::new(
-							periodic_access_source,
-							move |_| update_sender.send(
-								AudioBackendCommand::Update(AudioUpdate::SongEnded(path_buf.clone()))
-							).unwrap(),
-						);
+			// add done info
+			let update_sender = orig_update_sender.clone();
+			let path_buf = path.to_path_buf();
+			let done_access_source = DoneAccess::new(
+				periodic_access_source,
+				move |_| update_sender.send(
+					AudioBackendCommand::Update(AudioUpdate::SongEnded(path_buf.clone()))
+				).unwrap(),
+			);
 
-						if let Some(duration) = skip {
-							let source = done_access_source.skip_duration(duration);
-							sink.append(source);
-						} else {
-							sink.append(done_access_source);
-						}
-
-						info_sender.send(AudioInfo::Queued(path.to_path_buf())).unwrap();
-					} else {
-						info_sender.send(AudioInfo::FailedOpen(path.to_path_buf())).unwrap();
-					}
-				} else {
-					info_sender.send(AudioInfo::FailedOpen(path.to_path_buf())).unwrap();
-				}
+			if let Some(duration) = skip {
+				let source = done_access_source.skip_duration(duration);
+				sink.append(source);
+			} else {
+				sink.append(done_access_source);
 			}
-			Err(_) => info_sender.send(AudioInfo::FailedOpen(path.to_path_buf())).unwrap(),
+
+			info_sender.send(AudioInfo::Queued(path.to_path_buf())).unwrap();
 		}
 	}
 
