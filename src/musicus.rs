@@ -144,11 +144,11 @@ impl Musicus {
 				AudioInfo::SongEnded(song) => {
 					log(&format!("song ended: {:?}\n", song.path));
 				}
-				AudioInfo::SongStarts(_path, total_duration, start_duration) => {
+				AudioInfo::SongStarts(song, total_duration, start_duration) => {
 					if let Some(playing_song) = &mut self.playing_song_info {
 						playing_song.total_duration = total_duration;
 						playing_song.play_position = start_duration;
-						// TODO: set name of song
+						playing_song.title = song.title;
 					}
 					has_to_render = true;
 					log(&format!("start update: {:?}\n", start_duration));
