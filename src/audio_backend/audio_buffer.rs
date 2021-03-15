@@ -10,18 +10,21 @@ use rodio::buffer::SamplesBuffer;
 
 pub type ArcSongBuffer = Arc<DashMap<PathBuf, Arc<Sound>>>;
 
+pub struct AudioBuffer {
+	songs: ArcSongBuffer,
+	load_sender: Sender<PathBuf>,
+}
+
 pub struct Sound {
 	channels: u16,
 	sample_rate: u32,
 	data: Vec<f32>,
 }
 
-pub struct AudioBuffer {
-	songs: ArcSongBuffer,
-	load_sender: Sender<PathBuf>,
-}
-
 impl AudioBuffer {
+	/**
+	 * Creates a new AudioBuffer
+	 */
 	pub fn new() -> AudioBuffer {
 		let (load_sender, load_receiver): (Sender<PathBuf>, Receiver<PathBuf>) = unbounded();
 
@@ -73,6 +76,9 @@ impl AudioBuffer {
 		return SamplesBuffer::new(channels, sample_rate, arc.data.clone());
 	}
 
+	/**
+	 * Returns a sample buffer. If the buffer was not loaded it is loaded after this function.
+	 */
 	pub fn get(&self, path: &Path) -> SamplesBuffer<f32> {
 		if !self.songs.contains_key(path) {
 			return Self::load_blocking(&self.songs, path.to_path_buf());
