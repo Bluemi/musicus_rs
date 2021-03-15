@@ -143,7 +143,7 @@ impl Musicus {
 					}
 				}
 				AudioInfo::FailedOpen(song, e) => {
-					self.debug_manager.add_entry(format!("Failed to open: {:?} {:?}\n", song.path, e));
+					self.debug_manager.add_entry_color(format!("Failed to open: {:?} {:?}\n", song.path, e), RenderColor::RED, RenderColor::BLACK);
 				}
 				AudioInfo::SongEnded(song) => {
 					self.debug_manager.add_entry(format!("song ended: {:?}\n", song.path));
