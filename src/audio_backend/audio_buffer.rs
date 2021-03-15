@@ -1,5 +1,5 @@
 use std::path::{PathBuf, Path};
-use rodio::{buffer, Decoder, Source};
+use rodio::{Decoder, Source};
 use std::sync::Arc;
 use std::fs::File;
 use std::io::BufReader;
@@ -8,7 +8,6 @@ use std::thread;
 use dashmap::DashMap;
 use rodio::buffer::SamplesBuffer;
 
-pub type SongBuffer = Arc<buffer::SamplesBuffer<f32>>;
 pub type ArcSongBuffer = Arc<DashMap<PathBuf, Arc<Sound>>>;
 
 pub struct Sound {
