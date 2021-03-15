@@ -11,6 +11,7 @@ mod audio_backend;
 mod playlists;
 mod config;
 mod play_state;
+mod debug_manager;
 
 fn main() {
 	let mut musicus = Musicus::new();

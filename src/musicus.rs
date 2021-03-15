@@ -13,6 +13,7 @@ use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, 
 use serde::{Serialize, Deserialize};
 use std::time::Duration;
 use crate::play_state::{PlayPosition, PlayState, PlayMode};
+use crate::debug_manager::DebugManager;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -24,6 +25,7 @@ pub struct Musicus {
 	info_receiver: Receiver<AudioInfo>,
 	file_manager: FileManager,
 	playlist_manager: PlaylistManager,
+	debug_manager: DebugManager,
 	window: Window,
 	color_pairs: HashMap<(RenderColor, RenderColor), i16>,
 	color_pair_counter: i16,
@@ -42,6 +44,7 @@ struct SongInfo {
 pub enum ViewState {
 	FileManager,
 	Playlists,
+	Debug,
 }
 
 impl Musicus {
@@ -74,6 +77,7 @@ impl Musicus {
             info_receiver,
 			file_manager: FileManager::new((window.get_max_y()-1) as usize, &cache.filemanager_cache),
 			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache, (window.get_max_y()-1) as usize),
+			debug_manager: DebugManager::new(),
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
@@ -139,19 +143,19 @@ impl Musicus {
 					}
 				}
 				AudioInfo::FailedOpen(song, e) => {
-					log(&format!("Failed to open: {:?} {:?}\n", song.path, e));
+					self.debug_manager.add_entry(format!("Failed to open: {:?} {:?}\n", song.path, e));
 				}
 				AudioInfo::SongEnded(song) => {
-					log(&format!("song ended: {:?}\n", song.path));
+					self.debug_manager.add_entry(format!("song ended: {:?}\n", song.path));
 				}
 				AudioInfo::SongStarts(song, total_duration, start_duration) => {
 					if let Some(playing_song) = &mut self.playing_song_info {
 						playing_song.total_duration = total_duration;
 						playing_song.play_position = start_duration;
-						playing_song.title = song.title;
+						playing_song.title = song.title.clone();
 					}
 					has_to_render = true;
-					log(&format!("start update: {:?}\n", start_duration));
+					self.debug_manager.add_entry(format!("start song \"{}\" (start position: {:?})\n", song.title, start_duration));
 				}
 				_ => {}
 			}
@@ -182,12 +186,13 @@ impl Musicus {
 						('j', ViewState::Playlists) => self.playlist_manager.move_down(),
 						('k', ViewState::Playlists) => self.playlist_manager.move_up(),
 						('c', _) => self.toggle_pause(),
-						('1', ViewState::Playlists) => self.view_state = ViewState::FileManager,
-						('2', ViewState::FileManager) => self.view_state = ViewState::Playlists,
+						('1', _) => self.view_state = ViewState::FileManager,
+						('2', _) => self.view_state = ViewState::Playlists,
+						('3', _) => self.view_state = ViewState::Debug,
 						('s', _) => self.play_state.toggle_mode(),
 						_ => {
 							got_valid_input = false;
-							log(&format!("got unknown char: {}\n", c as i32));
+							self.debug_manager.add_entry(format!("got unknown char: {}\n", c as i32));
 						},
 					}
 				}
@@ -268,6 +273,7 @@ impl Musicus {
 			let render_object = match self.view_state {
 				ViewState::FileManager => self.file_manager.get_render_object(),
 				ViewState::Playlists => self.playlist_manager.get_render_object(&self.play_state),
+				ViewState::Debug => self.debug_manager.get_render_object(),
 			};
 			self.window.erase();
 			self.render_panels(&render_object);
