@@ -9,7 +9,7 @@ use periodic_access::PeriodicAccess;
 use start_access::StartAccess;
 
 use crate::musicus::log;
-use crate::audio_backend::audio_buffer::AudioBuffer;
+use crate::audio_backend::audio_buffer::{AudioBuffer, OpenError};
 
 mod done_access;
 mod start_access;
@@ -93,7 +93,7 @@ pub enum AudioInfo {
 	Queued(PathBuf),
 	SongStarts(PathBuf, Duration, Duration),
 	SongEndsSoon(PathBuf, Duration), // path, duration played
-	FailedOpen(PathBuf),
+	FailedOpen(PathBuf, OpenError),
 	SongEnded(PathBuf),
 }
 
@@ -276,56 +276,62 @@ impl AudioBackend {
 		skip: Option<Duration>,
 		audio_buffer: &AudioBuffer,
 	) {
-		let song_buffer = audio_buffer.get(path);
-		if let Some(total_duration) = song_buffer.total_duration() {
-			// add start info
-			let update_sender = orig_update_sender.clone();
-			let path_buf = path.to_path_buf();
-			let start_access_source = StartAccess::new(
-				song_buffer,
-				move || update_sender.send(
-					AudioBackendCommand::Update(AudioUpdate::SongStarts(
-						path_buf.clone(), total_duration, skip.unwrap_or(Duration::new(0, 0))
-					))
-				).unwrap(),
-			);
+		match audio_buffer.get(path) {
+			Ok(song_buffer) => {
+				if let Some(total_duration) = song_buffer.total_duration() {
+					// add start info
+					let update_sender = orig_update_sender.clone();
+					let path_buf = path.to_path_buf();
+					let start_access_source = StartAccess::new(
+						song_buffer,
+						move || update_sender.send(
+							AudioBackendCommand::Update(AudioUpdate::SongStarts(
+								path_buf.clone(), total_duration, skip.unwrap_or(Duration::new(0, 0))
+							))
+						).unwrap(),
+					);
 
-			// add playing info
-			let update_sender = orig_update_sender.clone();
-			let path_buf = path.to_path_buf();
-			let periodic_access_source = PeriodicAccess::new(
-				start_access_source,
-				move |_source, duration_played| {
-					update_sender.send(
-						AudioBackendCommand::Update(AudioUpdate::Playing(
-							PlayingUpdate {
-								song_path: path_buf.clone(),
-								duration_played,
-							}
-						)
-					)).unwrap();
-				},
-				UPDATE_DURATION
-			);
+					// add playing info
+					let update_sender = orig_update_sender.clone();
+					let path_buf = path.to_path_buf();
+					let periodic_access_source = PeriodicAccess::new(
+						start_access_source,
+						move |_source, duration_played| {
+							update_sender.send(
+								AudioBackendCommand::Update(AudioUpdate::Playing(
+									PlayingUpdate {
+										song_path: path_buf.clone(),
+										duration_played,
+									}
+								)
+								)).unwrap();
+						},
+						UPDATE_DURATION
+					);
 
-			// add done info
-			let update_sender = orig_update_sender.clone();
-			let path_buf = path.to_path_buf();
-			let done_access_source = DoneAccess::new(
-				periodic_access_source,
-				move |_| update_sender.send(
-					AudioBackendCommand::Update(AudioUpdate::SongEnded(path_buf.clone()))
-				).unwrap(),
-			);
+					// add done info
+					let update_sender = orig_update_sender.clone();
+					let path_buf = path.to_path_buf();
+					let done_access_source = DoneAccess::new(
+						periodic_access_source,
+						move |_| update_sender.send(
+							AudioBackendCommand::Update(AudioUpdate::SongEnded(path_buf.clone()))
+						).unwrap(),
+					);
 
-			if let Some(duration) = skip {
-				let source = done_access_source.skip_duration(duration);
-				sink.append(source);
-			} else {
-				sink.append(done_access_source);
+					if let Some(duration) = skip {
+						let source = done_access_source.skip_duration(duration);
+						sink.append(source);
+					} else {
+						sink.append(done_access_source);
+					}
+
+					info_sender.send(AudioInfo::Queued(path.to_path_buf())).unwrap();
+				}
+			},
+			Err(e) => {
+				info_sender.send(AudioInfo::FailedOpen(path.to_path_buf(), e)).unwrap();
 			}
-
-			info_sender.send(AudioInfo::Queued(path.to_path_buf())).unwrap();
 		}
 	}
 

@@ -138,8 +138,8 @@ impl Musicus {
 						).unwrap();
 					}
 				}
-				AudioInfo::FailedOpen(path) => {
-					log(&format!("Failed to open: {:?}\n", path));
+				AudioInfo::FailedOpen(path, e) => {
+					log(&format!("Failed to open: {:?} {:?}\n", path, e));
 				}
 				AudioInfo::SongEnded(path) => {
 					log(&format!("song ended: {:?}\n", path));
