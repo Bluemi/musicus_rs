@@ -1,6 +1,5 @@
 use rodio::{Source, Sample};
 use std::time::Duration;
-use crate::musicus::log;
 
 pub struct PeriodicAccess<S, F> {
 	source: S,
@@ -17,7 +16,7 @@ where S: Source,
 	  F: FnMut(&mut S, Duration),
 {
 	pub fn new(source: S, modifier: F, period: Duration) -> PeriodicAccess<S, F> {
-		let update_frequency = (period.as_secs_f64() * source.sample_rate() as f64) as u32;
+		let update_frequency = (period.as_secs_f64() * source.sample_rate() as f64 * source.channels() as f64) as u32;
 
 		PeriodicAccess {
 			source,
@@ -44,6 +43,7 @@ where S: Source,
 		self.samples_until_update -= 1;
 		if self.samples_until_update == 0 {
 			(self.modifier)(&mut self.source, self.duration_played);
+			// log(&format!("duration played: {:?}\n", self.duration_played));
 			self.duration_played += self.period;
 			self.samples_until_update = self.update_frequency;
 		}

@@ -10,7 +10,6 @@ use start_access::StartAccess;
 
 use crate::musicus::log;
 use crate::audio_backend::audio_buffer::AudioBuffer;
-use std::ops::Deref;
 
 mod done_access;
 mod start_access;
@@ -296,12 +295,12 @@ impl AudioBackend {
 			let path_buf = path.to_path_buf();
 			let periodic_access_source = PeriodicAccess::new(
 				start_access_source,
-				move |s, d| {
+				move |_source, duration_played| {
 					update_sender.send(
 						AudioBackendCommand::Update(AudioUpdate::Playing(
 							PlayingUpdate {
 								song_path: path_buf.clone(),
-								duration_played: d,
+								duration_played,
 							}
 						)
 					)).unwrap();
