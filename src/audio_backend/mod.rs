@@ -212,7 +212,6 @@ impl AudioBackend {
 						current_song.sent_song_ends_soon = true;
 					}
 					current_song.set_real_play_duration(playing_update.duration_played);
-					// log(&format!("send playing: duration_left: {:?}, total_duration: {:?}\n", playing_update.duration_played, current_song.total_duration));
 					self.info_sender.send(AudioInfo::Playing(playing_update.song.clone(), current_song.get_real_play_duration())).unwrap();
 				} else {
 					log(&format!("ERROR: current song is None, but got Playing update\n"));
@@ -231,7 +230,6 @@ impl AudioBackend {
 					start_duration,
 					sent_song_ends_soon: false,
 				});
-				// log(&format!("start update: {:?}\n", start_duration));
 			}
 		}
 	}
