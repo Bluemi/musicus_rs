@@ -92,6 +92,7 @@ impl Musicus {
 		pancurses::curs_set(0);
 		pancurses::start_color();
 		window.timeout(CURSES_TIMEOUT);
+		window.keypad(true);
 	}
 
 	pub fn shutdown(&mut self) {
@@ -191,8 +192,10 @@ impl Musicus {
 						('3', _) => self.view_state = ViewState::Debug,
 						('s', _) => self.play_state.toggle_mode(),
 						_ => {
-							got_valid_input = false;
-							self.debug_manager.add_entry(format!("got unknown char: {}\n", c as i32));
+							if !matches!(self.view_state, ViewState::Debug) {
+								got_valid_input = false;
+							}
+							self.debug_manager.add_entry(format!("got unknown char: {} ({})\n", c, c as i32));
 						},
 					}
 				}
