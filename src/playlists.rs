@@ -6,6 +6,7 @@ use std::io::{BufReader, BufWriter};
 use serde::{Serialize, Deserialize};
 use crate::config::PlaylistManagerCache;
 use crate::play_state::PlayState;
+use std::fmt::{Debug, Formatter, Result};
 
 pub struct PlaylistManager {
 	pub shown_playlist_index: usize,
@@ -243,6 +244,12 @@ impl Song {
 		}
 
 		songs
+	}
+}
+
+impl Debug for Song {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+		write!(f, "{}", self.title)
 	}
 }
 

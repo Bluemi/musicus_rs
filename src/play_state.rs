@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use crate::playlists::{PlaylistManager, Song};
 use random::Source;
 
@@ -61,7 +60,7 @@ impl PlayState {
 
 pub enum PlayPosition {
 	Empty,
-	File(PathBuf),
+	File(Song),
 	Playlist(usize, usize), // playlist index, song index
 }
 

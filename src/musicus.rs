@@ -4,13 +4,13 @@ use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel, format_d
 use pancurses::{Window, Input};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::ffi::OsString;
 use std::collections::HashMap;
 use crossbeam::{unbounded, Sender, Receiver};
 use std::thread;
 use crate::playlists::{PlaylistManager, Song, Playlist};
 use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache, PlaylistManagerCache};
 use serde::{Serialize, Deserialize};
-use std::path::PathBuf;
 use std::time::Duration;
 use crate::play_state::{PlayPosition, PlayState, PlayMode};
 
@@ -134,15 +134,15 @@ impl Musicus {
 				AudioInfo::SongEndsSoon(_, _) => {
 					if let Some(song) = self.play_state.get_next_song(&mut self.playlist_manager) {
 						self.command_sender.send(
-							AudioBackendCommand::Command(AudioCommand::Queue(song.path.clone()))
+							AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))
 						).unwrap();
 					}
 				}
-				AudioInfo::FailedOpen(path, e) => {
-					log(&format!("Failed to open: {:?} {:?}\n", path, e));
+				AudioInfo::FailedOpen(song, e) => {
+					log(&format!("Failed to open: {:?} {:?}\n", song.path, e));
 				}
-				AudioInfo::SongEnded(path) => {
-					log(&format!("song ended: {:?}\n", path));
+				AudioInfo::SongEnded(song) => {
+					log(&format!("song ended: {:?}\n", song.path));
 				}
 				AudioInfo::SongStarts(_path, total_duration, start_duration) => {
 					if let Some(playing_song) = &mut self.playing_song_info {
@@ -221,12 +221,16 @@ impl Musicus {
 
 	fn filemanager_context_action(&mut self) {
 		let current_path = self.file_manager.current_path.clone();
-		Self::play(&mut self.playing_song_info, &self.command_sender, &mut self.play_state, current_path.clone(), None);
-		self.play_state.play_position = PlayPosition::File(current_path);
+		let song = Song {
+			title: current_path.file_name().unwrap_or(&OsString::from("<no filename>")).to_string_lossy().into_owned(),
+			path: current_path,
+		};
+		Self::play(&mut self.playing_song_info, &self.command_sender, &mut self.play_state, song.clone(), None);
+		self.play_state.play_position = PlayPosition::File(song);
 	}
 
-	fn play(playing_song_info: &mut Option<SongInfo>, command_sender: &Sender<AudioBackendCommand>, play_state: &mut PlayState, path: PathBuf, title: Option<String>) {
-		let title = title.unwrap_or(path.to_string_lossy().into_owned());
+	fn play(playing_song_info: &mut Option<SongInfo>, command_sender: &Sender<AudioBackendCommand>, play_state: &mut PlayState, song: Song, title: Option<String>) {
+		let title = title.unwrap_or(song.path.to_string_lossy().into_owned());
 
 		*playing_song_info = Some(SongInfo {
 			title,
@@ -234,13 +238,13 @@ impl Musicus {
 			total_duration: Duration::new(0, 0),
 		});
 
-		command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(path))).unwrap();
+		command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(song))).unwrap();
 		play_state.playing = true;
 	}
 
 	fn playlist_manager_context_action(&mut self) {
         if let Some(song) = self.playlist_manager.get_shown_song() {
-			Self::play(&mut self.playing_song_info, &self.command_sender, &mut self.play_state, song.path.clone(), Some(song.title.clone()));
+			Self::play(&mut self.playing_song_info, &self.command_sender, &mut self.play_state, song.clone(), Some(song.title.clone()));
 			self.play_state.play_position = PlayPosition::Playlist(self.playlist_manager.shown_playlist_index, self.playlist_manager.get_shown_playlist().unwrap().cursor_position);
 		}
 	}
