@@ -172,8 +172,8 @@ impl Musicus {
 					got_valid_input = true;
 					match (c, self.view_state) {
 						('q' | ESC_CHAR, _) => *running = false,
-						('i', _) => self.seek(SeekDirection::Forward),
-						('u', _) => self.seek(SeekDirection::Backward),
+						('L', _) => self.seek(SeekDirection::Forward),
+						('H', _) => self.seek(SeekDirection::Backward),
 						(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
 						('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
 						('n', ViewState::FileManager) => self.file_manager_new_playlist(),
