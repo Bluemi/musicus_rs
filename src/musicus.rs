@@ -178,7 +178,9 @@ impl Musicus {
 						playing_song.title = song.title.clone();
 					}
 					has_to_render = true;
-					self.debug_manager.add_entry(format!("start song \"{}\" (start position: {:?})\n", song.title, start_duration));
+					if start_duration == Duration::new(0, 0) {
+						self.debug_manager.add_entry(format!("start song \"{}\" (start position: {:?})\n", song.title, start_duration));
+					}
 				}
 				_ => {}
 			}

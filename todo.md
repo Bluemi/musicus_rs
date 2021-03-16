@@ -1,4 +1,4 @@
 # Todo
 
-- remove song from playlist
 - import playlists from cmus
+- remove song from playlist
