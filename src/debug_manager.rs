@@ -39,6 +39,9 @@ impl DebugManager {
             let render_entry = RenderEntry::new(entry.text.clone(), entry.foreground_color, entry.background_color);
             render_panel.entries.push(render_entry);
         }
+        if self.entries.is_empty() {
+            render_panel.entries.push(RenderEntry::new("<no entries>".to_string(), RenderColor::BLUE, RenderColor::BLACK));
+        }
         render_object.panels.push(render_panel);
 
         render_object
