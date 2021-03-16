@@ -34,19 +34,24 @@ impl PlayState {
 		}
 	}
 
-	pub fn get_next_song(&mut self, playlist_manager: &mut PlaylistManager) -> Option<Song> {
+	pub fn get_next_song<'a>(&mut self, playlist_manager: &'a PlaylistManager) -> Option<&'a Song> {
 		match &mut self.play_position {
 			PlayPosition::Playlist(playlist_index, song_index) => {
-				*song_index = match self.mode {
-					PlayMode::Normal => *song_index + 1,
-					PlayMode::Shuffle => {
-						let played_playlist = playlist_manager.playlists.get(*playlist_index).unwrap();
-						self.random_source.read::<usize>() % played_playlist.songs.len()
-					},
-				};
-				playlist_manager.get_song(*playlist_index, *song_index).map(|s| s.clone())
+				playlist_manager.get_song(*playlist_index, *song_index+1)
 			}
 			_ => None,
+		}
+	}
+
+	pub fn next_song(&mut self, playlist_manager: &PlaylistManager) {
+		if let PlayPosition::Playlist(playlist_index, song_index) = &mut self.play_position {
+			match self.mode {
+				PlayMode::Normal => *song_index += 1,
+				PlayMode::Shuffle => {
+					let played_playlist = playlist_manager.playlists.get(*playlist_index).unwrap();
+					*song_index = self.random_source.read::<usize>() % played_playlist.songs.len();
+				},
+			};
 		}
 	}
 

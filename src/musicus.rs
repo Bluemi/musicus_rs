@@ -19,6 +19,8 @@ const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
 const ENTER_CHAR: char = 10 as char;
 const CURSES_TIMEOUT: i32 = 200;
+const QUEUE_OFFSET: Duration = Duration::from_millis(2000);
+const LOAD_OFFSET: Duration = Duration::from_millis(5000);
 
 pub struct Musicus {
     command_sender: Sender<AudioBackendCommand>,
@@ -38,6 +40,8 @@ struct SongInfo {
 	title: String,
 	play_position: Duration,
 	total_duration: Duration,
+	queued_next: bool,
+	loaded_next: bool,
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
@@ -122,7 +126,8 @@ impl Musicus {
 		while running {
 			let got_input = self.handle_input(&mut running);
 			let got_update = self.handle_audio_backend();
-			self.render(got_input || got_update);
+			let got_log = self.debug_manager.has_update();
+			self.render(got_input || got_update || (matches!(self.view_state, ViewState::Debug) && got_log));
 		}
 		self.shutdown();
 	}
@@ -131,16 +136,33 @@ impl Musicus {
 		let mut has_to_render = false;
 		for info in self.info_receiver.try_iter() {
 			match info {
-				AudioInfo::Playing(_, duration) => {
+				AudioInfo::Playing(_song, play_position, total_duration) => {
 					if let Some(playing_song) = &mut self.playing_song_info {
-						playing_song.play_position = duration;
-					}
-				}
-				AudioInfo::SongEndsSoon(_, _) => {
-					if let Some(song) = self.play_state.get_next_song(&mut self.playlist_manager) {
-						self.command_sender.send(
-							AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))
-						).unwrap();
+						playing_song.play_position = play_position;
+
+						let duration_left = total_duration.checked_sub(play_position).unwrap_or(Duration::new(0, 0));
+
+
+						// check for load command
+						if !playing_song.loaded_next && duration_left < LOAD_OFFSET {
+							if let Some(song) = self.play_state.get_next_song(&mut self.playlist_manager) {
+								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Load(song.clone()))).unwrap();
+								self.debug_manager.add_entry(format!("loading \"{}\"", song.title));
+								playing_song.loaded_next = true;
+							}
+						}
+
+						// check for queue command
+						if !playing_song.queued_next && duration_left < QUEUE_OFFSET {
+							if let Some(song) = self.play_state.get_next_song(&self.playlist_manager) {
+								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))).unwrap();
+								self.play_state.next_song(&self.playlist_manager);
+								self.debug_manager.add_entry(format!("queueing \"{}\"", song.title));
+								playing_song.queued_next = true;
+							}
+						}
+					} else {
+						self.debug_manager.add_entry_color("Got playing update, but playing song info is not set.".to_string(), RenderColor::RED, RenderColor::BLACK);
 					}
 				}
 				AudioInfo::FailedOpen(song, e) => {
@@ -244,6 +266,8 @@ impl Musicus {
 			title,
 			play_position: Duration::new(0, 0),
 			total_duration: Duration::new(0, 0),
+			queued_next: false,
+			loaded_next: false,
 		});
 
 		command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(song))).unwrap();

@@ -17,7 +17,6 @@ mod periodic_access;
 mod audio_buffer;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(100);
-const SONG_ENDS_SOON_OFFSET: Duration = Duration::from_millis(2000);
 
 pub struct AudioBackend {
 	sink: rodio::Sink,
@@ -34,7 +33,6 @@ struct CurrentSongState {
 	total_duration: Duration,
 	play_duration: Duration,
 	start_duration: Duration,
-	sent_song_ends_soon: bool,
 }
 
 impl CurrentSongState {
@@ -50,6 +48,7 @@ impl CurrentSongState {
 pub enum AudioCommand {
 	Play(Song),
 	Queue(Song),
+	Load(Song),
 	Pause,
     Unpause,
 	Seek(SeekCommand),
@@ -89,10 +88,9 @@ pub enum SeekDirection {
 
 #[derive(Debug)]
 pub enum AudioInfo {
-	Playing(Song, Duration), // playing song, play duration
+	Playing(Song, Duration, Duration), // playing song, play duration, total duration
 	Queued(Song),
 	SongStarts(Song, Duration, Duration),
-	SongEndsSoon(Song, Duration), // path, duration played
 	FailedOpen(Song, OpenError),
 	SongEnded(Song),
 }
@@ -196,6 +194,7 @@ impl AudioBackend {
 		match command {
 			AudioCommand::Play(song) => Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &song, None, &self.audio_buffer),
 			AudioCommand::Queue(song) => Self::queue(&mut self.sink, &self.update_sender, &self.info_sender, &song, None, &self.audio_buffer),
+			AudioCommand::Load(song) => self.audio_buffer.load(song.path),
 			AudioCommand::Pause => self.pause(),
 			AudioCommand::Unpause => self.unpause(),
 			AudioCommand::Seek(seek_command) => self.seek(seek_command),
@@ -207,12 +206,8 @@ impl AudioBackend {
 			AudioUpdate::Playing(playing_update) => {
 				if let Some(current_song) = &mut self.current_song {
 					assert_eq!(current_song.song.path, playing_update.song.path);
-					if !current_song.sent_song_ends_soon && (current_song.total_duration.checked_sub(playing_update.duration_played).unwrap_or(Duration::new(0, 0))) <= SONG_ENDS_SOON_OFFSET {
-						self.info_sender.send(AudioInfo::SongEndsSoon(playing_update.song.clone(), playing_update.duration_played)).unwrap();
-						current_song.sent_song_ends_soon = true;
-					}
 					current_song.set_real_play_duration(playing_update.duration_played);
-					self.info_sender.send(AudioInfo::Playing(playing_update.song.clone(), current_song.get_real_play_duration())).unwrap();
+					self.info_sender.send(AudioInfo::Playing(playing_update.song.clone(), current_song.get_real_play_duration(), current_song.total_duration)).unwrap();
 				} else {
 					log(&format!("ERROR: current song is None, but got Playing update\n"));
 				}
@@ -228,7 +223,6 @@ impl AudioBackend {
 					total_duration,
 					play_duration: Duration::new(0, 0),
 					start_duration,
-					sent_song_ends_soon: false,
 				});
 			}
 		}

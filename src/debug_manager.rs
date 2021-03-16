@@ -2,6 +2,7 @@ use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor};
 
 pub struct DebugManager {
     entries: Vec<Entry>,
+    has_update: bool,
 }
 
 struct Entry {
@@ -14,6 +15,7 @@ impl DebugManager {
     pub fn new() -> DebugManager {
         DebugManager {
             entries: Vec::new(),
+            has_update: false,
         }
     }
 
@@ -27,6 +29,7 @@ impl DebugManager {
             foreground_color,
             background_color
         });
+        self.has_update = true;
     }
 
     pub fn get_render_object(&self) -> RenderObject {
@@ -39,5 +42,11 @@ impl DebugManager {
         render_object.panels.push(render_panel);
 
         render_object
+    }
+
+    pub fn has_update(&mut self) -> bool {
+        let hu = self.has_update;
+        self.has_update = false;
+        hu
     }
 }
