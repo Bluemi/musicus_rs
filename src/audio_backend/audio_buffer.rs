@@ -6,19 +6,13 @@ use std::io::BufReader;
 use crossbeam::{Sender, Receiver, unbounded};
 use std::thread;
 use dashmap::DashMap;
-use rodio::buffer::SamplesBuffer;
+use crate::audio_backend::arc_samples_buffer::{Sound, ArcSamplesBuffer};
 
 pub type ArcSongBuffer = Arc<DashMap<PathBuf, Arc<Sound>>>;
 
 pub struct AudioBuffer {
 	songs: ArcSongBuffer,
 	load_sender: Sender<PathBuf>,
-}
-
-pub struct Sound {
-	channels: u16,
-	sample_rate: u32,
-	data: Vec<f32>,
 }
 
 #[derive(Debug)]
@@ -66,21 +60,23 @@ impl AudioBuffer {
 	 * Loads the given path and makes it available in the contained hashmap. Blocks until the song is
 	 * loaded.
 	 */
-	pub fn load_blocking(songs: &ArcSongBuffer, path: PathBuf) -> Result<SamplesBuffer<f32>, OpenError> {
+	pub fn load_blocking(songs: &ArcSongBuffer, path: PathBuf) -> Result<ArcSamplesBuffer, OpenError> {
 		if let Ok(file) = File::open(&path) {
 			if let Ok(source) = Decoder::new(BufReader::new(file)) {
 				let channels = source.channels();
 				let sample_rate = source.sample_rate();
+                let duration = source.total_duration().unwrap();
 				let data: Vec<f32> = source.convert_samples().collect();
 				let sound = Sound {
 					channels,
 					sample_rate,
+					duration,
 					data,
 				};
 				let new_path = path.clone();
 				let arc = Arc::new(sound);
 				songs.insert(new_path, arc.clone());
-				Ok(SamplesBuffer::new(channels, sample_rate, arc.data.clone()))
+				Ok(ArcSamplesBuffer::new(arc))
 			} else {
 				Err(OpenError::NotDecodable)
 			}
@@ -92,11 +88,11 @@ impl AudioBuffer {
 	/**
 	 * Returns a sample buffer. If the buffer was not loaded it is loaded after this function.
 	 */
-	pub fn get(&self, path: &Path) -> Result<SamplesBuffer<f32>, OpenError> {
+	pub fn get(&self, path: &Path) -> Result<ArcSamplesBuffer, OpenError> {
 		if !self.songs.contains_key(path) {
 			return Self::load_blocking(&self.songs, path.to_path_buf());
 		}
 		let sound = self.songs.get(path).unwrap();
-		Ok(SamplesBuffer::new(sound.channels, sound.sample_rate, sound.data.clone()))
+		Ok(ArcSamplesBuffer::new(sound.clone()))
 	}
 }

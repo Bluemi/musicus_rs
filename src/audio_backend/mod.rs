@@ -15,6 +15,7 @@ mod done_access;
 mod start_access;
 mod periodic_access;
 mod audio_buffer;
+mod arc_samples_buffer;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(100);
 
