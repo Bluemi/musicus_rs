@@ -12,6 +12,7 @@ mod playlists;
 mod config;
 mod play_state;
 mod debug_manager;
+mod random;
 
 fn main() {
 	let mut musicus = Musicus::new();

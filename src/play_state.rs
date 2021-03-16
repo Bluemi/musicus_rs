@@ -1,11 +1,11 @@
 use crate::playlists::{PlaylistManager, Song};
-use random::Source;
+use crate::random::RandomGenerator;
 
 pub struct PlayState {
 	pub playing: bool,
 	pub play_position: PlayPosition,
 	pub mode: PlayMode,
-	random_source: random::Default,
+	random_generator: RandomGenerator,
 }
 
 impl PlayState {
@@ -14,7 +14,7 @@ impl PlayState {
 			playing: false,
 			play_position: PlayPosition::Empty,
 			mode: PlayMode::Normal,
-			random_source: random::default(),
+			random_generator: RandomGenerator::new(),
 		}
 	}
 
@@ -37,7 +37,14 @@ impl PlayState {
 	pub fn get_next_song<'a>(&mut self, playlist_manager: &'a PlaylistManager) -> Option<&'a Song> {
 		match &mut self.play_position {
 			PlayPosition::Playlist(playlist_index, song_index) => {
-				playlist_manager.get_song(*playlist_index, *song_index+1)
+				let next_song_index = match self.mode {
+					PlayMode::Normal => *song_index + 1,
+					PlayMode::Shuffle => {
+						let played_playlist = playlist_manager.playlists.get(*playlist_index).unwrap();
+						self.random_generator.get_offset_unchecked(1) % played_playlist.songs.len()
+					},
+				};
+				playlist_manager.get_song(*playlist_index, next_song_index)
 			}
 			_ => None,
 		}
@@ -49,7 +56,7 @@ impl PlayState {
 				PlayMode::Normal => *song_index += 1,
 				PlayMode::Shuffle => {
 					let played_playlist = playlist_manager.playlists.get(*playlist_index).unwrap();
-					*song_index = self.random_source.read::<usize>() % played_playlist.songs.len();
+					*song_index = self.random_generator.next() % played_playlist.songs.len();
 				},
 			};
 		}
