@@ -7,6 +7,7 @@ use crossbeam::{Sender, Receiver, unbounded};
 use std::thread;
 use dashmap::DashMap;
 use crate::audio_backend::arc_samples_buffer::{Sound, ArcSamplesBuffer};
+use std::time::Duration;
 
 pub type ArcSongBuffer = Arc<DashMap<PathBuf, Arc<Sound>>>;
 
@@ -65,8 +66,10 @@ impl AudioBuffer {
 			if let Ok(source) = Decoder::new(BufReader::new(file)) {
 				let channels = source.channels();
 				let sample_rate = source.sample_rate();
-                let duration = source.total_duration().unwrap();
+				let duration = source.total_duration();
 				let data: Vec<f32> = source.convert_samples().collect();
+
+				let duration = duration.unwrap_or(Duration::from_secs_f64(data.len() as f64 / sample_rate as f64 / channels as f64));
 				let sound = Sound {
 					channels,
 					sample_rate,
