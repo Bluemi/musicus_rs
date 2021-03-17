@@ -12,3 +12,4 @@ Cargo.lock
 /.idea
 
 /log.txt
+/error_log.txt
