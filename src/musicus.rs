@@ -220,6 +220,7 @@ impl Musicus {
 						('2', _) => self.view_state = ViewState::Playlists,
 						('3', _) => self.view_state = ViewState::Debug,
 						('s', _) => self.play_state.toggle_mode(),
+						('i', ViewState::FileManager) => self.playlist_manager.import_playlists(&self.file_manager.current_path),
 						_ => {
 							if !matches!(self.view_state, ViewState::Debug) {
 								got_valid_input = false;

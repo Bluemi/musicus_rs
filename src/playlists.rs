@@ -2,11 +2,12 @@ use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor};
 use std::path::{Path, PathBuf};
 use crate::file_manager::file_utils::{get_dir_entries, DirectoryEntry, get_common_ends};
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, BufWriter};
+use std::io::{BufReader, BufWriter, BufRead};
 use serde::{Serialize, Deserialize};
 use crate::config::PlaylistManagerCache;
 use crate::play_state::PlayState;
-use std::fmt::{Debug, Formatter, Result};
+use std::fmt::{Debug, Formatter};
+use crate::musicus::log;
 
 pub struct PlaylistManager {
 	pub shown_playlist_index: usize,
@@ -178,6 +179,78 @@ impl PlaylistManager {
 
 		render_object
 	}
+
+	pub fn try_import_playlist_file(path: &Path) -> Result<Vec<PathBuf>, String> {
+		if path.is_file() {
+			if let Ok(file) = File::open(path) {
+				let mut files = Vec::new();
+				let mut reader = BufReader::new(file);
+				let mut line = String::new();
+				loop {
+					match reader.read_line(&mut line) {
+						Ok(bytes_read) => {
+							if bytes_read == 0 {
+								return Ok(files);
+							}
+							let path = PathBuf::from(&line.trim());
+							if path.is_file() {
+								files.push(path);
+							}
+							line.clear();
+						}
+						Err(_) => {
+							return Err(format!("Could read file \"{:?}\"", path));
+						}
+					}
+				}
+			} else {
+				return Err(format!("Failed to open \"{:?}\"", path));
+			}
+		} else {
+			return Err(format!("Cant import \"{:?}\" as it is not a file", path));
+		}
+	}
+
+	pub fn import_playlists(&mut self, path: &Path) {
+		if path.is_file() {
+			// TODO: extract method
+			match PlaylistManager::try_import_playlist_file(&path) {
+				Ok(paths) => {
+					log(&format!("paths: {:?}\n", paths));
+					let playlist = PlaylistManager::playlist_from_files(&paths, &path);
+					self.playlists.push(playlist);
+				}
+				Err(e) => log(&format!("error importing playlist file: {}", e))
+			}
+		} else {
+			for entry in get_dir_entries(path) {
+				if entry.is_file {
+					if let Ok(paths) = PlaylistManager::try_import_playlist_file(&entry.path) {
+						let playlist = PlaylistManager::playlist_from_files(&paths, &entry.path);
+						self.playlists.push(playlist);
+					}
+				} else {
+					self.import_playlists(&entry.path);
+				}
+			}
+		}
+	}
+
+	fn playlist_from_files(paths: &Vec<PathBuf>, path: &Path) -> Playlist {
+		let mut songs = Vec::new();
+		for path in paths {
+			songs.push(Song {
+				title: path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or("<no-title>".to_string()),
+				path: path.clone(),
+			});
+		}
+		Playlist {
+			name: path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or("<no-name>".to_string()),
+			songs,
+			cursor_position: 0,
+			scroll_position: 0
+		}
+	}
 }
 
 impl Playlist {
@@ -214,6 +287,16 @@ impl Song {
 		let sound_files: Vec<&DirectoryEntry> = dir_entries.iter().filter(|de| de.is_song_file()).collect();
 		let sub_directories: Vec<&DirectoryEntry> = dir_entries.iter().filter(|de| !de.is_file).collect();
 
+		let mut songs = Song::songs_from_sound_files(sound_files);
+
+		for sub_directory in sub_directories {
+			songs.extend(Song::songs_from_path(&sub_directory.path));
+		}
+
+		songs
+	}
+
+	pub fn songs_from_sound_files(sound_files: Vec<&DirectoryEntry>) -> Vec<Song> {
 		let (mut start, mut end) = ("", "");
 		// matching same name parts only makes sense for more than one song
 		if sound_files.len() > 1 {
@@ -232,18 +315,13 @@ impl Song {
 					path: sound_file.path.clone(),
 				}
 			);
-		}
-
-		for sub_directory in sub_directories {
-			songs.extend(Song::songs_from_path(&sub_directory.path));
-		}
-
+		};
 		songs
 	}
 }
 
 impl Debug for Song {
-	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", self.title)
 	}
 }
