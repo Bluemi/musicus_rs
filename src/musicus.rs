@@ -19,8 +19,8 @@ const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
 const ENTER_CHAR: char = 10 as char;
 const CURSES_TIMEOUT: i32 = 200;
-const QUEUE_OFFSET: Duration = Duration::from_millis(2000);
-const LOAD_OFFSET: Duration = Duration::from_millis(5000);
+const QUEUE_OFFSET: Duration = Duration::from_secs(2);
+const LOAD_OFFSET: Duration = Duration::from_secs(10);
 
 pub struct Musicus {
     command_sender: Sender<AudioBackendCommand>,
