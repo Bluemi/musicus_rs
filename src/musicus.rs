@@ -132,6 +132,15 @@ impl Musicus {
 		self.shutdown();
 	}
 
+	fn start_next_song(&mut self) {
+		if let Some(song) = self.play_state.get_next_song(&self.playlist_manager) {
+			self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(song.clone()))).unwrap();
+			self.play_state.next_song(&self.playlist_manager);
+		} else {
+			self.debug_manager.add_entry("no next song to play".to_string());
+		}
+	}
+
 	fn handle_audio_backend(&mut self) -> bool {
 		let mut has_to_render = false;
 		for info in self.info_receiver.try_iter() {
@@ -203,6 +212,7 @@ impl Musicus {
 						('q' | ESC_CHAR, _) => *running = false,
 						('L', _) => self.seek(SeekDirection::Forward),
 						('H', _) => self.seek(SeekDirection::Backward),
+						('J', _) => self.start_next_song(),
 						(ENTER_CHAR, ViewState::FileManager) => self.filemanager_context_action(),
 						('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
 						('n', ViewState::FileManager) => self.file_manager_new_playlist(),
