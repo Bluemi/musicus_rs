@@ -136,6 +136,11 @@ impl Musicus {
 		if let Some(song) = self.play_state.get_next_song(&self.playlist_manager) {
 			self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(song.clone()))).unwrap();
 			self.play_state.next_song(&self.playlist_manager);
+			if let PlayPosition::Playlist(playlist_index, song_index) = &mut self.play_state.play_position {
+				if let Some(playlist) = &mut self.playlist_manager.playlists.get_mut(*playlist_index) {
+					playlist.set_cursor_position(*song_index, self.playlist_manager.num_rows);
+				}
+			}
 		} else {
 			self.debug_manager.add_entry("no next song to play".to_string());
 		}

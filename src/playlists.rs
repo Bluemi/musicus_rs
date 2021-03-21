@@ -76,7 +76,6 @@ impl PlaylistManager {
 	}
 
 	pub fn move_down(&mut self) {
-        let num_rows = self.num_rows as i32;
 		match self.view {
 			PlaylistView::Overview => {
 				if self.shown_playlist_index < self.playlists.len() - 1 {
@@ -84,10 +83,11 @@ impl PlaylistManager {
 				}
 			}
 			PlaylistView::Playlist => {
+				let num_rows = self.num_rows;
 				if let Some(playlist) = self.get_shown_playlist() {
 					if playlist.cursor_position < playlist.songs.len() - 1 {
 						playlist.cursor_position += 1;
-						playlist.scroll_position = (playlist.scroll_position as i32).max(playlist.cursor_position as i32-num_rows + 1) as usize;
+						playlist.normalize_scroll_position(num_rows);
 					}
 				}
 			}
@@ -102,12 +102,11 @@ impl PlaylistManager {
 				}
 			}
 			PlaylistView::Playlist => {
+				let num_rows = self.num_rows;
 				if let Some(playlist) = self.get_shown_playlist() {
 					if playlist.cursor_position > 0 {
 						playlist.cursor_position -= 1;
-						if playlist.scroll_position > playlist.cursor_position {
-							playlist.scroll_position = playlist.cursor_position;
-						}
+						playlist.normalize_scroll_position(num_rows);
 					}
 				}
 			}
@@ -278,6 +277,15 @@ impl Playlist {
 			.unwrap();
 		let writer = BufWriter::new(file);
 		serde_json::to_writer_pretty(writer, &self).unwrap();
+	}
+
+	pub fn set_cursor_position(&mut self, cursor_position: usize, num_rows: usize) {
+		self.cursor_position = cursor_position;
+		self.normalize_scroll_position(num_rows)
+	}
+
+	pub fn normalize_scroll_position(&mut self, num_rows: usize) {
+		self.scroll_position = self.scroll_position.clamp((self.cursor_position as i32 - num_rows as i32 + 1) as usize, self.cursor_position);
 	}
 }
 
