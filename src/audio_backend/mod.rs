@@ -9,7 +9,7 @@ use start_access::StartAccess;
 
 use crate::musicus::log;
 use crate::audio_backend::audio_buffer::{AudioBuffer, OpenError};
-use crate::playlists::Song;
+use crate::song::Song;
 
 mod done_access;
 mod start_access;

@@ -13,6 +13,7 @@ mod config;
 mod play_state;
 mod debug_manager;
 mod random;
+mod song;
 
 fn main() {
 	let mut musicus = Musicus::new();

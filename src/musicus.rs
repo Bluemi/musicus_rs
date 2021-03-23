@@ -8,12 +8,13 @@ use std::ffi::OsString;
 use std::collections::HashMap;
 use crossbeam::{unbounded, Sender, Receiver};
 use std::thread;
-use crate::playlists::{PlaylistManager, Song, Playlist};
+use crate::playlists::{PlaylistManager, Playlist};
 use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache, PlaylistManagerCache};
 use serde::{Serialize, Deserialize};
 use std::time::Duration;
 use crate::play_state::{PlayPosition, PlayState, PlayMode};
 use crate::debug_manager::DebugManager;
+use crate::song::Song;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;

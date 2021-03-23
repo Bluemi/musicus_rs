@@ -1,5 +1,6 @@
-use crate::playlists::{PlaylistManager, Song};
+use crate::playlists::PlaylistManager;
 use crate::random::RandomGenerator;
+use crate::song::Song;
 
 pub struct PlayState {
 	pub playing: bool,
