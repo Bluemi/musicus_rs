@@ -279,7 +279,11 @@ impl Playlist {
 	}
 
 	pub fn normalize_scroll_position(&mut self, num_rows: usize) {
-		self.scroll_position = self.scroll_position.clamp((self.cursor_position as i32 - num_rows as i32 + 1) as usize, self.cursor_position);
+		let scroll_position = self.scroll_position as i32;
+		self.scroll_position = scroll_position.clamp(
+			self.cursor_position as i32 - num_rows as i32 + 1,
+			self.cursor_position as i32
+		) as usize;
 	}
 }
 
