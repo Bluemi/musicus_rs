@@ -53,6 +53,7 @@ pub enum AudioCommand {
 	Pause,
     Unpause,
 	Seek(SeekCommand),
+    SetVolume(f32),
 }
 
 #[derive(Copy, Clone)]
@@ -120,6 +121,7 @@ impl AudioBackendCommand {
 		let mut last_play_command = None;
 		let mut last_playing_update = None;
 		let mut seek_command: Option<SeekCommand> = None;
+		let mut last_set_volume: Option<f32> = None;
 
 		for command_or_update in vec.into_iter() {
 			match command_or_update {
@@ -130,6 +132,9 @@ impl AudioBackendCommand {
 						}
 						AudioCommand::Seek(new_seek) => {
 							seek_command = seek_command.map_or(Some(new_seek), |old_seek| Some(SeekCommand::join(old_seek, new_seek)))
+						}
+						AudioCommand::SetVolume(v) => {
+							last_set_volume = Some(v);
 						}
 						command => {
 							result.push(AudioBackendCommand::Command(command));
@@ -152,6 +157,9 @@ impl AudioBackendCommand {
 		}
 		if let Some(seek_command) = seek_command {
 			result.push(AudioBackendCommand::Command(AudioCommand::Seek(seek_command)));
+		}
+		if let Some(v) = last_set_volume {
+			result.push(AudioBackendCommand::Command(AudioCommand::SetVolume(v)));
 		}
 		result
 	}
@@ -199,7 +207,12 @@ impl AudioBackend {
 			AudioCommand::Pause => self.pause(),
 			AudioCommand::Unpause => self.unpause(),
 			AudioCommand::Seek(seek_command) => self.seek(seek_command),
+			AudioCommand::SetVolume(volume) => self.set_volume(volume),
 		}
+	}
+
+	fn set_volume(&mut self, volume: f32) {
+		self.sink.set_volume(volume);
 	}
 
 	fn handle_update(&mut self, update: AudioUpdate) {
