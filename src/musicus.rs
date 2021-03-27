@@ -35,7 +35,7 @@ pub struct Musicus {
 	play_state: PlayState,
 	view_state: ViewState,
 	playing_song_info: Option<SongInfo>,
-	volume: f32,
+	volume: i32,
 }
 
 struct SongInfo {
@@ -90,7 +90,7 @@ impl Musicus {
 			play_state: PlayState::new(),
 			view_state: cache.view,
 			playing_song_info: None,
-			volume: 1.0,
+			volume: 100,
 		}
 	}
 
@@ -238,8 +238,8 @@ impl Musicus {
 						('2', _) => self.view_state = ViewState::Playlists,
 						('3', _) => self.view_state = ViewState::Debug,
 						('s', _) => self.play_state.toggle_mode(),
-						('+', _) => self.change_volume(0.1),
-						('-', _) => self.change_volume(-0.1),
+						('+', _) => self.change_volume(10),
+						('-', _) => self.change_volume(-10),
 						('i', ViewState::FileManager) => self.playlist_manager.import_playlists(&self.file_manager.current_path),
 						_ => {
 							if !matches!(self.view_state, ViewState::Debug) {
@@ -255,10 +255,10 @@ impl Musicus {
 		got_valid_input
 	}
 
-	fn change_volume(&mut self, volume_change: f32) {
-		self.volume = (self.volume + volume_change).clamp(0.0, 1.0);
+	fn change_volume(&mut self, volume_change: i32) {
+		self.volume = (self.volume + volume_change).clamp(0, 100);
         self.command_sender.send(
-			AudioBackendCommand::Command(AudioCommand::SetVolume(self.volume))
+			AudioBackendCommand::Command(AudioCommand::SetVolume(self.volume as f32 * 0.01))
 		).unwrap();
 	}
 
@@ -360,7 +360,7 @@ impl Musicus {
 					current_song.title,
 					format_duration(current_song.play_position),
 					format_duration(current_song.total_duration),
-					(self.volume * 100.0) as i32,
+					self.volume,
 				),
 			);
 		}
