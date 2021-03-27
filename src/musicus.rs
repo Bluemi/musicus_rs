@@ -353,13 +353,14 @@ impl Musicus {
 			};
 			self.window.mvaddstr(
 				self.window.get_max_y()-1,
-				0,
+				1,
 				format!(
-					" {} {}  {} / {}",
+					"{} {}  {} / {}  vol: {}%",
 					play_mode_str,
 					current_song.title,
 					format_duration(current_song.play_position),
-					format_duration(current_song.total_duration)
+					format_duration(current_song.total_duration),
+					(self.volume * 100.0) as i32,
 				),
 			);
 		}
