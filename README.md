@@ -1,13 +1,21 @@
 # Musicus
 
-Musicus is a terminal music player like [cmus](https://github.com/cmus/cmus), written in the Rust Programming Language.
+Musicus is a terminal music player like [cmus](https://github.com/cmus/cmus),
+written in the [Rust Programming Language](https://www.rust-lang.org/learn).
 This project is still in early development but feel free to try it out.
 
-## Issue Report
-If you find a bug, I would appreciate it if you write an issue report. Since ncurses prevents the normal backtrace output, you can use the following command to generate a backtrace:
+## Participate in the project
+
+### Issue Report
+If you find a bug, I would appreciate it if you write an issue report.
+Since ncurses prevents the normal backtrace output, you can use the following command
+in a bash shell to generate a backtrace:
 ```bash
 RUST_BACKTRACE=full cargo run --quiet --release 2> error_log.txt
 ```
+
+### Discussions
+If you have a question or an idea, you are very welcome to express it in the discussion page of the repository.
 
 ## Manual
 
