@@ -15,7 +15,8 @@ RUST_BACKTRACE=full cargo run --quiet --release 2> error_log.txt
 ```
 
 ### Discussions
-If you have a question or an idea, you are very welcome to express it in the discussion page of the repository.
+If you have a question or an idea, you are very welcome to express it in the
+[discussions](https://github.com/Bluemi/musicus_rs/discussions) page of the repository.
 
 ## Manual
 
