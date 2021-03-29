@@ -203,7 +203,7 @@ impl AudioBackend {
 		match command {
 			AudioCommand::Play(song) => Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &song, None, &self.audio_buffer),
 			AudioCommand::Queue(song) => Self::queue(&mut self.sink, &self.update_sender, &self.info_sender, &song, None, &self.audio_buffer),
-			AudioCommand::Load(song) => self.audio_buffer.load(song.path),
+			AudioCommand::Load(song) => self.audio_buffer.load(song.get_path().to_path_buf()),
 			AudioCommand::Pause => self.pause(),
 			AudioCommand::Unpause => self.unpause(),
 			AudioCommand::Seek(seek_command) => self.seek(seek_command),
@@ -219,7 +219,7 @@ impl AudioBackend {
 		match update {
 			AudioUpdate::Playing(playing_update) => {
 				if let Some(current_song) = &mut self.current_song {
-					assert_eq!(current_song.song.path, playing_update.song.path);
+					assert_eq!(current_song.song.get_path(), playing_update.song.get_path());
 					current_song.set_real_play_duration(playing_update.duration_played);
 					self.info_sender.send(AudioInfo::Playing(playing_update.song.clone(), current_song.get_real_play_duration(), current_song.total_duration)).unwrap();
 				} else {
@@ -282,7 +282,7 @@ impl AudioBackend {
 		skip: Option<Duration>,
 		audio_buffer: &AudioBuffer,
 	) {
-		match audio_buffer.get(&song.path) {
+		match audio_buffer.get(song.get_path()) {
 			Ok(song_buffer) => {
 				if let Some(total_duration) = song_buffer.total_duration() {
 					// add start info

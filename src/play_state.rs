@@ -1,6 +1,6 @@
 use crate::playlists::PlaylistManager;
 use crate::random::RandomGenerator;
-use crate::song::Song;
+use crate::song::SongID;
 
 pub struct PlayState {
 	pub playing: bool,
@@ -35,7 +35,7 @@ impl PlayState {
 		}
 	}
 
-	pub fn get_next_song<'a>(&mut self, playlist_manager: &'a PlaylistManager) -> Option<&'a Song> {
+	pub fn get_next_song(&mut self, playlist_manager: &PlaylistManager) -> Option<SongID> {
 		match &mut self.play_position {
 			PlayPosition::Playlist(playlist_index, song_index) => {
 				let next_song_index = match self.mode {
@@ -73,7 +73,7 @@ impl PlayState {
 
 pub enum PlayPosition {
 	Empty,
-	File(Song),
+	File(SongID),
 	Playlist(usize, usize), // playlist index, song index
 }
 

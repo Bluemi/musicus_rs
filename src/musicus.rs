@@ -4,7 +4,6 @@ use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel, format_d
 use pancurses::{Window, Input};
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::ffi::OsString;
 use std::collections::HashMap;
 use crossbeam::{unbounded, Sender, Receiver};
 use std::thread;
@@ -15,6 +14,7 @@ use std::time::Duration;
 use crate::play_state::{PlayPosition, PlayState, PlayMode};
 use crate::debug_manager::DebugManager;
 use crate::song::Song;
+use crate::song::song_buffer::SongBuffer;
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -29,6 +29,7 @@ pub struct Musicus {
 	file_manager: FileManager,
 	playlist_manager: PlaylistManager,
 	debug_manager: DebugManager,
+	pub song_buffer: SongBuffer,
 	window: Window,
 	color_pairs: HashMap<(RenderColor, RenderColor), i16>,
 	color_pair_counter: i16,
@@ -84,6 +85,7 @@ impl Musicus {
 			file_manager: FileManager::new((window.get_max_y()-1) as usize, &cache.filemanager_cache),
 			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache, (window.get_max_y()-1) as usize),
 			debug_manager: DebugManager::new(),
+			song_buffer: cache.song_buffer,
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
@@ -117,6 +119,7 @@ impl Musicus {
 				current_directory: self.file_manager.current_path.clone(),
 			},
 			playlist_manager_cache: self.playlist_manager.create_cache(),
+			song_buffer: self.song_buffer.clone(),
 		};
 		cache.dump();
 	}
@@ -134,7 +137,8 @@ impl Musicus {
 	}
 
 	fn start_next_song(&mut self) {
-		if let Some(song) = self.play_state.get_next_song(&self.playlist_manager) {
+		if let Some(song_id) = self.play_state.get_next_song(&self.playlist_manager) {
+			let song = self.song_buffer.get(song_id).unwrap();
 			self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(song.clone()))).unwrap();
 			self.play_state.next_song(&self.playlist_manager);
 			if let PlayPosition::Playlist(playlist_index, song_index) = &mut self.play_state.play_position {
@@ -159,9 +163,10 @@ impl Musicus {
 
 						// check for load command
 						if !playing_song.loaded_next && duration_left < LOAD_OFFSET {
-							if let Some(song) = self.play_state.get_next_song(&mut self.playlist_manager) {
+							if let Some(song_id) = self.play_state.get_next_song(&mut self.playlist_manager) {
+								let song = self.song_buffer.get(song_id).unwrap();
 								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Load(song.clone()))).unwrap();
-								self.debug_manager.add_entry(format!("loading \"{}\"", song.title));
+								self.debug_manager.add_entry(format!("loading \"{}\"", song.get_title()));
 								playing_song.loaded_next = true;
 							} else {
 								self.debug_manager.add_entry("no next song to load".to_string());
@@ -170,10 +175,11 @@ impl Musicus {
 
 						// check for queue command
 						if !playing_song.queued_next && duration_left < QUEUE_OFFSET {
-							if let Some(song) = self.play_state.get_next_song(&self.playlist_manager) {
+							if let Some(song_id) = self.play_state.get_next_song(&self.playlist_manager) {
+								let song = self.song_buffer.get(song_id).unwrap();
 								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))).unwrap();
 								self.play_state.next_song(&self.playlist_manager);
-								self.debug_manager.add_entry(format!("queueing \"{}\"", song.title));
+								self.debug_manager.add_entry(format!("queueing \"{}\"", song.get_title()));
 								playing_song.queued_next = true;
 							} else {
 								self.debug_manager.add_entry("no next song to queue".to_string());
@@ -184,14 +190,14 @@ impl Musicus {
 					}
 				}
 				AudioInfo::FailedOpen(song, e) => {
-					self.debug_manager.add_entry_color(format!("Failed to open: {:?} {:?}\n", song.path, e), RenderColor::RED, RenderColor::BLACK);
+					self.debug_manager.add_entry_color(format!("Failed to open: {:?} {:?}\n", song.get_path(), e), RenderColor::RED, RenderColor::BLACK);
 				}
 				AudioInfo::SongEnded(song) => {
-					self.debug_manager.add_entry(format!("song ended: \"{}\"\n", song.title));
+					self.debug_manager.add_entry(format!("song ended: \"{}\"\n", song.get_title()));
 				}
 				AudioInfo::SongStarts(song, total_duration, start_duration) => {
 					self.playing_song_info = Some(SongInfo {
-						title: song.title.clone(),
+						title: song.get_title().to_string(),
 						play_position: start_duration,
 						total_duration,
 						queued_next: false,
@@ -199,7 +205,7 @@ impl Musicus {
 					});
 					has_to_render = true;
 					if start_duration == Duration::new(0, 0) {
-						self.debug_manager.add_entry(format!("start song \"{}\"", song.title));
+						self.debug_manager.add_entry(format!("start song \"{}\"", song.get_title()));
 					}
 				}
 				_ => {}
@@ -240,7 +246,7 @@ impl Musicus {
 						('s', _) => self.play_state.toggle_mode(),
 						('+', _) => self.change_volume(10),
 						('-', _) => self.change_volume(-10),
-						('i', ViewState::FileManager) => self.playlist_manager.import_playlists(&self.file_manager.current_path),
+						('i', ViewState::FileManager) => self.playlist_manager.import_playlists(&self.file_manager.current_path, &mut self.song_buffer),
 						_ => {
 							if !matches!(self.view_state, ViewState::Debug) {
 								got_valid_input = false;
@@ -285,13 +291,10 @@ impl Musicus {
 	}
 
 	fn filemanager_context_action(&mut self) {
-		let current_path = self.file_manager.current_path.clone();
-		let song = Song {
-			title: current_path.file_name().unwrap_or(&OsString::from("<no filename>")).to_string_lossy().into_owned(),
-			path: current_path,
-		};
+		let song_id = self.song_buffer.import(&self.file_manager.current_path, None);
+		let song = self.song_buffer.get(song_id).unwrap();
 		Self::play(&self.command_sender, &mut self.play_state, song.clone());
-		self.play_state.play_position = PlayPosition::File(song);
+		self.play_state.play_position = PlayPosition::File(song_id);
 	}
 
 	fn play(command_sender: &Sender<AudioBackendCommand>, play_state: &mut PlayState, song: Song) {
@@ -300,19 +303,23 @@ impl Musicus {
 	}
 
 	fn playlist_manager_context_action(&mut self) {
-        if let Some(song) = self.playlist_manager.get_shown_song() {
-			Self::play(&self.command_sender, &mut self.play_state, song.clone());
-			self.play_state.play_position = PlayPosition::Playlist(self.playlist_manager.shown_playlist_index, self.playlist_manager.get_shown_playlist().unwrap().cursor_position);
+        if let Some(song_id) = self.playlist_manager.get_shown_song() {
+			if let Some(song) = self.song_buffer.get(song_id) {
+				Self::play(&self.command_sender, &mut self.play_state, song.clone());
+				self.play_state.play_position = PlayPosition::Playlist(self.playlist_manager.shown_playlist_index, self.playlist_manager.get_shown_playlist().unwrap().cursor_position);
+			} else {
+				self.debug_manager.add_entry_color(format!("Failed to start song id {}", song_id), RenderColor::RED, RenderColor::BLACK);
+			}
 		}
 	}
 
 	fn file_manager_add_to_playlist(&mut self) {
-		let songs = Song::songs_from_path(&self.file_manager.current_path);
+		let songs = Song::songs_from_path(&self.file_manager.current_path, &mut self.song_buffer);
 		self.playlist_manager.add_songs(songs);
 	}
 
 	fn file_manager_new_playlist(&mut self) {
-		let songs = Song::songs_from_path(&self.file_manager.current_path);
+		let songs = Song::songs_from_path(&self.file_manager.current_path, &mut self.song_buffer);
 		let name = self.file_manager.current_path.file_name().unwrap().to_str().unwrap().replace(" ", "");
 
 		let mut playlist = Playlist::new(name);
@@ -324,7 +331,7 @@ impl Musicus {
 		if everything {
 			let render_object = match self.view_state {
 				ViewState::FileManager => self.file_manager.get_render_object(),
-				ViewState::Playlists => self.playlist_manager.get_render_object(&self.play_state),
+				ViewState::Playlists => self.playlist_manager.get_render_object(&self.play_state, &self.song_buffer),
 				ViewState::Debug => self.debug_manager.get_render_object(),
 			};
 			self.window.erase();
