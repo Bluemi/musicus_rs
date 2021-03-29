@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use crossbeam::{unbounded, Sender, Receiver};
 use std::thread;
 use crate::playlists::{PlaylistManager, Playlist};
-use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache, PlaylistManagerCache};
+use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache};
 use serde::{Serialize, Deserialize};
 use std::time::Duration;
 use crate::play_state::{PlayPosition, PlayState, PlayMode};
@@ -116,9 +116,7 @@ impl Musicus {
 			filemanager_cache: FileManagerCache {
 				current_directory: self.file_manager.current_path.clone(),
 			},
-			playlist_manager_cache: PlaylistManagerCache {
-				view: self.playlist_manager.view,
-			}
+			playlist_manager_cache: self.playlist_manager.create_cache(),
 		};
 		cache.dump();
 	}

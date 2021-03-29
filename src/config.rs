@@ -50,6 +50,7 @@ pub struct FileManagerCache {
 #[derive(Serialize, Deserialize)]
 pub struct PlaylistManagerCache {
 	pub view: PlaylistView,
+	pub shown_playlist_index: usize,
 }
 
 impl Cache {
@@ -88,6 +89,7 @@ impl Cache {
 			},
 			playlist_manager_cache: PlaylistManagerCache {
 				view: PlaylistView::Overview,
+				shown_playlist_index: 0,
 			}
 		}
 	}

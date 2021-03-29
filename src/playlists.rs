@@ -33,10 +33,17 @@ pub enum PlaylistView {
 impl PlaylistManager {
 	pub fn new(playlists: Vec<Playlist>, cache: &PlaylistManagerCache, num_rows: usize) -> PlaylistManager {
 		PlaylistManager {
-			shown_playlist_index: 0,
+			shown_playlist_index: cache.shown_playlist_index,
 			playlists,
 			view: cache.view,
 			num_rows,
+		}
+	}
+
+	pub fn create_cache(&self) -> PlaylistManagerCache {
+		PlaylistManagerCache {
+			view: self.view,
+			shown_playlist_index: self.shown_playlist_index,
 		}
 	}
 
