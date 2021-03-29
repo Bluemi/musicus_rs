@@ -3,6 +3,7 @@ use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor};
 pub struct DebugManager {
     entries: Vec<Entry>,
     has_update: bool,
+    scroll_position: usize,
 }
 
 struct Entry {
@@ -16,7 +17,12 @@ impl DebugManager {
         DebugManager {
             entries: Vec::new(),
             has_update: false,
+            scroll_position: 0,
         }
+    }
+
+    pub fn scroll(&mut self, direction: i32) {
+        self.scroll_position = (self.scroll_position as i32 + direction).max(0) as usize;
     }
 
     pub fn add_entry(&mut self, text: String) {
@@ -42,6 +48,7 @@ impl DebugManager {
         if self.entries.is_empty() {
             render_panel.entries.push(RenderEntry::new("<no entries>".to_string(), RenderColor::BLUE, RenderColor::BLACK));
         }
+		render_panel.scroll_position = self.scroll_position;
         render_object.panels.push(render_panel);
 
         render_object
