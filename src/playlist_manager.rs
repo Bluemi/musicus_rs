@@ -130,7 +130,6 @@ impl PlaylistManager {
 				cursor - self.num_rows as i32 + 1,
 				cursor
 			) as usize;
-			log(&format!("num rows: {}  scroll: {}  cursor: {}\n", self.num_rows, scroll, cursor));
 			self.scroll_cursor_positions.insert(playlist.id, (scroll, cursor as usize));
 		}
 	}
