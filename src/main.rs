@@ -8,7 +8,7 @@ mod musicus;
 mod file_manager;
 mod render;
 mod audio_backend;
-mod playlists;
+mod playlist_manager;
 mod config;
 mod play_state;
 mod debug_manager;

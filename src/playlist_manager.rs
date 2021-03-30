@@ -1,14 +1,16 @@
-use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor, Alignment, format_duration};
 use std::path::{Path, PathBuf};
-use crate::file_manager::file_utils::get_dir_entries;
-use std::fs::{File, OpenOptions};
-use std::io::{BufReader, BufWriter, BufRead};
-use crate::config::PlaylistManagerCache;
+use std::fs::File;
+use std::io::{BufReader, BufRead};
 use serde::{Serialize, Deserialize};
+
+use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor, Alignment, format_duration};
+use crate::file_manager::file_utils::get_dir_entries;
+use crate::config::PlaylistManagerCache;
 use crate::play_state::PlayState;
 use crate::musicus::log;
 use crate::song::SongID;
 use crate::song::song_buffer::SongBuffer;
+use crate::song::playlist::Playlist;
 
 pub struct PlaylistManager {
 	pub shown_playlist_index: usize,
@@ -17,13 +19,6 @@ pub struct PlaylistManager {
 	pub num_rows: usize,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Playlist {
-	pub name: String,
-	pub songs: Vec<SongID>,
-	pub cursor_position: usize,
-	pub scroll_position: usize,
-}
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum PlaylistView {
@@ -265,47 +260,6 @@ impl PlaylistManager {
 	}
 }
 
-impl Playlist {
-	pub fn new(name: String) -> Playlist {
-		Playlist {
-			name,
-			songs: Vec::new(),
-			cursor_position: 0,
-			scroll_position: 0,
-		}
-	}
-
-	pub fn from_file(path: &Path) -> Playlist {
-		let file = File::open(path).unwrap();
-		let reader = BufReader::new(file);
-		serde_json::from_reader(reader).unwrap()
-	}
-
-	pub fn dump_to_file(&self, path: &Path) {
-		let file = OpenOptions::new()
-			.write(true)
-			.truncate(true)
-			.create(true)
-			.open(path)
-			.unwrap();
-		let writer = BufWriter::new(file);
-		serde_json::to_writer_pretty(writer, &self).unwrap();
-	}
-
-	pub fn set_cursor_position(&mut self, cursor_position: usize, num_rows: usize) {
-		self.cursor_position = cursor_position;
-		self.normalize_scroll_position(num_rows)
-	}
-
-	pub fn normalize_scroll_position(&mut self, num_rows: usize) {
-		let scroll_position = self.scroll_position as i32;
-		self.scroll_position = scroll_position.clamp(
-			self.cursor_position as i32 - num_rows as i32 + 1,
-			self.cursor_position as i32
-		) as usize;
-	}
-}
-
 pub fn normalize_title(title: &str, index: usize) -> String {
 	enum State {
 		Init,
@@ -351,7 +305,7 @@ pub fn normalize_title(title: &str, index: usize) -> String {
 
 mod tests {
     #[allow(unused_imports)]
-	use crate::playlists::normalize_title;
+	use crate::playlist_manager::normalize_title;
 
 	#[test]
 	fn test_normalize_title1() {

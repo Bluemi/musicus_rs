@@ -1,11 +1,12 @@
 pub mod song_buffer;
+pub mod playlist;
 
 use std::ffi::OsString;
 use std::path::{PathBuf, Path};
 use crate::file_manager::file_utils::{get_dir_entries, DirectoryEntry, get_common_ends};
 use std::fmt::{Debug, Formatter};
 use serde::{Serialize, Deserialize};
-use crate::playlists::normalize_title;
+use crate::playlist_manager::normalize_title;
 use crate::song::song_buffer::SongBuffer;
 use std::time::Duration;
 

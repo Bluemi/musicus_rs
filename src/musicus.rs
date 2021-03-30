@@ -7,7 +7,7 @@ use std::io::Write;
 use std::collections::HashMap;
 use crossbeam::{unbounded, Sender, Receiver};
 use std::thread;
-use crate::playlists::{PlaylistManager, Playlist};
+use crate::playlist_manager::PlaylistManager;
 use crate::config::{load_playlists, init_config, get_playlist_directory, Cache, FileManagerCache};
 use serde::{Serialize, Deserialize};
 use std::time::Duration;
@@ -15,6 +15,7 @@ use crate::play_state::{PlayPosition, PlayState, PlayMode};
 use crate::debug_manager::DebugManager;
 use crate::song::Song;
 use crate::song::song_buffer::SongBuffer;
+use crate::song::playlist::Playlist;
 use crate::string_helpers::{cut_str_left, limit_str_right};
 
 const FILE_BROWSER_OFFSET: i32 = 5;

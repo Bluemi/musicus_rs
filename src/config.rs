@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 use crate::file_manager::file_utils::{create_dir, get_dir_entries};
-use crate::playlists::{Playlist, PlaylistView};
+use crate::playlist_manager::PlaylistView;
 use serde::{Serialize, Deserialize};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use std::env::current_dir;
 use crate::musicus::ViewState;
+use crate::song::playlist::Playlist;
 
 pub fn get_config_directory() -> PathBuf {
 	dirs::config_dir().unwrap().join("musicus")

@@ -1,4 +1,4 @@
-use crate::playlists::PlaylistManager;
+use crate::playlist_manager::PlaylistManager;
 use crate::random::RandomGenerator;
 use crate::song::SongID;
 
