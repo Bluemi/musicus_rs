@@ -15,7 +15,6 @@ use crate::play_state::{PlayPosition, PlayState, PlayMode};
 use crate::debug_manager::DebugManager;
 use crate::song::Song;
 use crate::song::song_buffer::SongBuffer;
-use crate::song::playlist::Playlist;
 use crate::string_helpers::{cut_str_left, limit_str_right};
 
 const FILE_BROWSER_OFFSET: i32 = 5;
@@ -343,9 +342,7 @@ impl Musicus {
 		let songs = Song::songs_from_path(&self.file_manager.current_path, &mut self.song_buffer);
 		let name = self.file_manager.current_path.file_name().unwrap().to_str().unwrap().replace(" ", "");
 
-		let mut playlist = Playlist::new(name);
-		playlist.songs = songs;
-		self.playlist_manager.playlists.push(playlist);
+		self.playlist_manager.add_playlist_with_songs(name, songs);
 	}
 
 	fn render(&mut self, everything: bool) {

@@ -10,13 +10,14 @@ use crate::play_state::PlayState;
 use crate::musicus::log;
 use crate::song::SongID;
 use crate::song::song_buffer::SongBuffer;
-use crate::song::playlist::Playlist;
+use crate::song::playlist::{Playlist, PlaylistID};
 
 pub struct PlaylistManager {
 	pub shown_playlist_index: usize,
 	pub playlists: Vec<Playlist>,
 	pub view: PlaylistView,
 	pub num_rows: usize,
+	pub next_playlist_id: PlaylistID,
 }
 
 
@@ -33,6 +34,7 @@ impl PlaylistManager {
 			playlists,
 			view: cache.view,
 			num_rows,
+			next_playlist_id: cache.next_playlist_id,
 		}
 	}
 
@@ -40,6 +42,7 @@ impl PlaylistManager {
 		PlaylistManagerCache {
 			view: self.view,
 			shown_playlist_index: self.shown_playlist_index,
+			next_playlist_id: self.next_playlist_id,
 		}
 	}
 
@@ -226,8 +229,7 @@ impl PlaylistManager {
 			match PlaylistManager::try_import_playlist_file(&path) {
 				Ok(paths) => {
 					log(&format!("paths: {:?}\n", paths));
-					let playlist = PlaylistManager::playlist_from_files(&paths, &path, song_buffer);
-					self.playlists.push(playlist);
+					self.add_playlist_from_files(&paths, &path, song_buffer);
 				}
 				Err(e) => log(&format!("error importing playlist file: {}", e))
 			}
@@ -235,8 +237,7 @@ impl PlaylistManager {
 			for entry in get_dir_entries(path) {
 				if entry.is_file {
 					if let Ok(paths) = PlaylistManager::try_import_playlist_file(&entry.path) {
-						let playlist = PlaylistManager::playlist_from_files(&paths, &entry.path, song_buffer);
-						self.playlists.push(playlist);
+						self.add_playlist_from_files(&paths, &entry.path, song_buffer);
 					}
 				} else {
 					self.import_playlists(&entry.path, song_buffer);
@@ -245,18 +246,26 @@ impl PlaylistManager {
 		}
 	}
 
-	fn playlist_from_files(paths: &Vec<PathBuf>, path: &Path, song_buffer: &mut SongBuffer) -> Playlist {
+	fn add_playlist_from_files(&mut self, paths: &Vec<PathBuf>, path: &Path, song_buffer: &mut SongBuffer) -> PlaylistID {
 		let mut songs = Vec::new();
 		for path in paths {
 			let id = song_buffer.import(path, None);
 			songs.push(id);
 		}
-		Playlist {
-			name: path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or("<no-name>".to_string()),
+		self.add_playlist_with_songs(path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or("<no-name>".to_string()), songs)
+	}
+
+	pub fn add_playlist_with_songs(&mut self, name: String, songs: Vec<SongID>) -> PlaylistID {
+		let id = self.next_playlist_id;
+		self.next_playlist_id += 1;
+		self.playlists.push(Playlist {
+			id,
+			name,
 			songs,
 			cursor_position: 0,
 			scroll_position: 0
-		}
+		});
+		id
 	}
 }
 

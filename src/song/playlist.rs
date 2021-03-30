@@ -4,8 +4,11 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use serde::{Serialize, Deserialize};
 
+pub type PlaylistID = u32;
+
 #[derive(Serialize, Deserialize)]
 pub struct Playlist {
+	pub id: PlaylistID,
 	pub name: String,
 	pub songs: Vec<SongID>,
 	pub cursor_position: usize,
@@ -13,8 +16,9 @@ pub struct Playlist {
 }
 
 impl Playlist {
-	pub fn new(name: String) -> Playlist {
+	pub fn new(id: PlaylistID, name: String) -> Playlist {
 		Playlist {
+			id,
 			name,
 			songs: Vec::new(),
 			cursor_position: 0,
