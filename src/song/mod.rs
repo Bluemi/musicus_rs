@@ -84,4 +84,3 @@ impl Debug for Song {
 		write!(f, "{}", self.title)
 	}
 }
-

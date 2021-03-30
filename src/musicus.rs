@@ -15,6 +15,7 @@ use crate::play_state::{PlayPosition, PlayState, PlayMode};
 use crate::debug_manager::DebugManager;
 use crate::song::Song;
 use crate::song::song_buffer::SongBuffer;
+use crate::string_helpers::{cut_str_left, limit_str_right};
 
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ESC_CHAR: char = 27 as char;
@@ -410,9 +411,9 @@ impl Musicus {
 		for (y_pos, e) in panel.entries.iter().skip(panel.scroll_position).take((self.window.get_max_y()-1) as usize).enumerate() {
 			self.set_color(e.foreground_color, e.background_color);
 			if (e.text.len() as i32) >= -x_pos {
-				let line = &e.text[(-x_pos).max(0) as usize..];
+				let line = cut_str_left(&e.text, (-x_pos).max(0) as usize);
 				let line = format!("{: <width$}", line, width=panel.get_width() + FILE_BROWSER_OFFSET as usize);
-				let line = &line[0..((self.window.get_max_x() - x_pos).max(0) as usize).min(line.len())];
+				let line = limit_str_right(&line, ((self.window.get_max_x() - x_pos).max(0) as usize).min(line.len()));
 				self.window.mvaddstr(y_pos as i32, x_pos.max(0), line);
 			}
 		}
