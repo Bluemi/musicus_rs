@@ -77,11 +77,11 @@ where S: Source,
 pub mod tests {
 	#[allow(unused_imports)]
 	use super::*;
+	#[allow(unused_imports)]
+	use rodio::Sink;
 
 	#[test]
 	fn test_periodic_access() {
-		use rodio::Sink;
-
 		let (sender, receiver) = crossbeam::unbounded();
 
 		let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();

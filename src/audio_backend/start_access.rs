@@ -63,11 +63,11 @@ where S: Source,
 pub mod tests {
 	#[allow(unused_imports)]
 	use super::*;
+	#[allow(unused_imports)]
+	use rodio::Sink;
 
 	#[test]
 	pub fn test_start_access() {
-		use rodio::Sink;
-
 		let (sender, receiver) = crossbeam::unbounded();
 
 		let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
