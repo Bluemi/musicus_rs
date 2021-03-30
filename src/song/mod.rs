@@ -7,6 +7,7 @@ use std::fmt::{Debug, Formatter};
 use serde::{Serialize, Deserialize};
 use crate::playlists::normalize_title;
 use crate::song::song_buffer::SongBuffer;
+use std::time::Duration;
 
 pub type SongID = u32;
 
@@ -15,6 +16,7 @@ pub struct Song {
 	id: SongID,
 	title: String,
 	path: PathBuf,
+	total_duration: Option<Duration>,
 }
 
 impl Song {
@@ -28,6 +30,14 @@ impl Song {
 
 	pub fn get_path(&self) -> &Path {
 		&self.path
+	}
+
+	pub fn get_total_duration(&self) -> Option<Duration> {
+		self.total_duration
+	}
+
+	pub fn update_total_duration(&mut self, duration: Duration) {
+		self.total_duration = Some(duration);
 	}
 
 	pub fn songs_from_path(path: &Path, song_buffer: &mut SongBuffer) -> Vec<SongID> {

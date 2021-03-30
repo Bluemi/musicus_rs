@@ -9,7 +9,7 @@ use start_access::StartAccess;
 
 use crate::musicus::log;
 use crate::audio_backend::audio_buffer::{AudioBuffer, OpenError};
-use crate::song::Song;
+use crate::song::{Song, SongID};
 
 mod done_access;
 mod start_access;
@@ -95,6 +95,7 @@ pub enum AudioInfo {
 	SongStarts(Song, Duration, Duration),
 	FailedOpen(Song, OpenError),
 	SongEnded(Song),
+	SongDuration(SongID, Duration),
 }
 
 #[derive(Debug)]
@@ -285,6 +286,11 @@ impl AudioBackend {
 		match audio_buffer.get(song.get_path()) {
 			Ok(song_buffer) => {
 				if let Some(total_duration) = song_buffer.total_duration() {
+					// send total duration info
+					if song.get_total_duration().is_none() {
+						info_sender.send(AudioInfo::SongDuration(song.get_id(), total_duration)).unwrap();
+					}
+
 					// add start info
 					let update_sender = orig_update_sender.clone();
 					let song_copy = song.clone();

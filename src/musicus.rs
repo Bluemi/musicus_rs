@@ -224,7 +224,10 @@ impl Musicus {
 						self.debug_manager.add_entry(format!("start song \"{}\"", song.get_title()));
 					}
 				}
-				_ => {}
+				AudioInfo::SongDuration(song_id, duration) => {
+					self.song_buffer.update_total_duration(song_id, duration);
+				}
+				AudioInfo::Queued(_) => {}
 			}
 		}
 		has_to_render

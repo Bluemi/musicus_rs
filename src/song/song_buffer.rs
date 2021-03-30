@@ -4,6 +4,7 @@ use std::path::Path;
 use std::fs::{OpenOptions, File};
 use crate::config::get_song_buffer_path;
 use std::io::{BufWriter, BufReader};
+use std::time::Duration;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SongBuffer {
@@ -33,6 +34,7 @@ impl SongBuffer {
 			id,
 			title,
 			path: path.to_path_buf(),
+			total_duration: None,
 		};
 		self.next_id += 1;
 		self.songs.push(song);
@@ -53,8 +55,14 @@ impl SongBuffer {
 		self.songs.iter().find(|s| s.get_path() == path)
 	}
 
-	pub fn get_mut_by_path(&mut self,path: &Path) -> Option<&mut Song> {
+	pub fn get_mut_by_path(&mut self, path: &Path) -> Option<&mut Song> {
 		self.songs.iter_mut().find(|s| s.get_path() == path)
+	}
+
+	pub fn update_total_duration(&mut self, song_id: SongID, duration: Duration) {
+		if let Some(song) = self.get_mut(song_id) {
+			song.update_total_duration(duration);
+		}
 	}
 
 	pub fn dump(&self) {
