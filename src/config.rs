@@ -8,6 +8,7 @@ use std::env::current_dir;
 use crate::musicus::ViewState;
 use crate::song::playlist::{Playlist, PlaylistID};
 use std::collections::HashMap;
+use crate::play_state::PlayMode;
 
 pub fn get_config_directory() -> PathBuf {
 	dirs::config_dir().unwrap().join("musicus")
@@ -44,6 +45,7 @@ pub fn load_playlists() -> Vec<Playlist> {
 #[derive(Serialize, Deserialize)]
 pub struct Cache {
 	pub view: ViewState,
+	pub play_mode: PlayMode,
 	pub filemanager_cache: FileManagerCache,
 	pub playlist_manager_cache: PlaylistManagerCache,
 }
@@ -91,6 +93,7 @@ impl Cache {
 	pub fn default() -> Cache {
 		Cache {
 			view: ViewState::FileManager,
+			play_mode: PlayMode::Normal,
 			filemanager_cache: FileManagerCache {
 				current_directory: current_dir().unwrap_or(PathBuf::new()),
 			},

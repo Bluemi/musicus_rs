@@ -104,7 +104,7 @@ impl Musicus {
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
-			play_state: PlayState::new(),
+			play_state: PlayState::new(cache.play_mode),
 			view_state: cache.view,
 			playing_song_info: None,
 			volume: 100,
@@ -130,6 +130,7 @@ impl Musicus {
 		// dump cache
 		let cache = Cache {
 			view: self.view_state,
+			play_mode: self.play_state.mode,
 			filemanager_cache: FileManagerCache {
 				current_directory: self.file_manager.current_path.clone(),
 			},

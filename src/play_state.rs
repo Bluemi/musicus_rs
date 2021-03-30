@@ -1,3 +1,4 @@
+use serde::{Serialize, Deserialize};
 use crate::playlist_manager::PlaylistManager;
 use crate::random::RandomGenerator;
 use crate::song::SongID;
@@ -10,11 +11,11 @@ pub struct PlayState {
 }
 
 impl PlayState {
-	pub fn new() -> PlayState {
+	pub fn new(mode: PlayMode) -> PlayState {
 		PlayState {
 			playing: false,
 			play_position: PlayPosition::Empty,
-			mode: PlayMode::Normal,
+			mode,
 			random_generator: RandomGenerator::new(),
 		}
 	}
@@ -77,6 +78,7 @@ pub enum PlayPosition {
 	Playlist(usize, usize), // playlist index, song index
 }
 
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum PlayMode {
 	Normal,
 	Shuffle,
