@@ -59,7 +59,14 @@ impl Musicus {
 		// setup config
 		init_config();
 
-		let cache = Cache::load();
+		let mut debug_manager = DebugManager::new();
+
+		let cache = if let Ok(cache) = Cache::load() {
+			cache
+		} else {
+			debug_manager.add_entry_color("Failed to load cache. Using default.".to_string(), RenderColor::RED, RenderColor::BLACK);
+			Cache::default()
+		};
 
 		// setup curses
 		let window = pancurses::initscr();
@@ -84,7 +91,7 @@ impl Musicus {
             info_receiver,
 			file_manager: FileManager::new((window.get_max_y()-1) as usize, &cache.filemanager_cache),
 			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache, (window.get_max_y()-1) as usize),
-			debug_manager: DebugManager::new(),
+			debug_manager,
 			song_buffer: cache.song_buffer,
 			window,
 			color_pairs: HashMap::new(),

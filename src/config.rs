@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use std::env::current_dir;
-use crate::musicus::{ViewState, log};
+use crate::musicus::ViewState;
 use crate::song::song_buffer::SongBuffer;
 
 pub fn get_config_directory() -> PathBuf {
@@ -56,19 +56,18 @@ pub struct PlaylistManagerCache {
 }
 
 impl Cache {
-	pub fn load() -> Cache {
+	pub fn load() -> Result<Cache, ()> {
 		let cache_path = get_cache_path();
 		if cache_path.is_file() {
 			let file = File::open(cache_path).unwrap();
 			let reader = BufReader::new(file);
 			if let Ok(cache) = serde_json::from_reader(reader) {
-				cache
+				Ok(cache)
 			} else {
-				log("WARN: couldn\'t load cache");
-				Cache::default()
+				Err(())
 			}
 		} else {
-			Cache::default()
+			Ok(Cache::default())
 		}
 	}
 
