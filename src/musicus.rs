@@ -159,9 +159,7 @@ impl Musicus {
 			self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(song.clone()))).unwrap();
 			self.play_state.next_song(&self.playlist_manager);
 			if let PlayPosition::Playlist(playlist_index, song_index) = &mut self.play_state.play_position {
-				if let Some(playlist) = &mut self.playlist_manager.playlists.get_mut(*playlist_index) {
-					playlist.set_cursor_position(*song_index, self.playlist_manager.num_rows);
-				}
+				self.playlist_manager.set_cursor_position(*playlist_index, *song_index);
 			}
 		} else {
 			self.debug_manager.add_entry("no next song to play".to_string());
@@ -326,7 +324,10 @@ impl Musicus {
         if let Some(song_id) = self.playlist_manager.get_shown_song() {
 			if let Some(song) = self.song_buffer.get(song_id) {
 				Self::play(&self.command_sender, &mut self.play_state, song.clone());
-				self.play_state.play_position = PlayPosition::Playlist(self.playlist_manager.shown_playlist_index, self.playlist_manager.get_shown_playlist().unwrap().cursor_position);
+				self.play_state.play_position = PlayPosition::Playlist(
+					self.playlist_manager.shown_playlist_index,
+					self.playlist_manager.get_shown_song_index().unwrap(),
+				);
 			} else {
 				self.debug_manager.add_entry_color(format!("Failed to start song id {}", song_id), RenderColor::RED, RenderColor::BLACK);
 			}

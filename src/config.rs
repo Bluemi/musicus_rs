@@ -7,6 +7,7 @@ use std::io::{BufReader, BufWriter};
 use std::env::current_dir;
 use crate::musicus::ViewState;
 use crate::song::playlist::{Playlist, PlaylistID};
+use std::collections::HashMap;
 
 pub fn get_config_directory() -> PathBuf {
 	dirs::config_dir().unwrap().join("musicus")
@@ -57,6 +58,7 @@ pub struct PlaylistManagerCache {
 	pub view: PlaylistView,
 	pub shown_playlist_index: usize,
 	pub next_playlist_id: PlaylistID,
+	pub scroll_cursor_positions: HashMap<PlaylistID, (usize, usize)>
 }
 
 impl Cache {
@@ -96,6 +98,7 @@ impl Cache {
 				view: PlaylistView::Overview,
 				shown_playlist_index: 0,
 				next_playlist_id: 0,
+				scroll_cursor_positions: HashMap::new(),
 			},
 		}
 	}

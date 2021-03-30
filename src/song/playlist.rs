@@ -11,21 +11,9 @@ pub struct Playlist {
 	pub id: PlaylistID,
 	pub name: String,
 	pub songs: Vec<SongID>,
-	pub cursor_position: usize,
-	pub scroll_position: usize,
 }
 
 impl Playlist {
-	pub fn new(id: PlaylistID, name: String) -> Playlist {
-		Playlist {
-			id,
-			name,
-			songs: Vec::new(),
-			cursor_position: 0,
-			scroll_position: 0,
-		}
-	}
-
 	pub fn from_file(path: &Path) -> Playlist {
 		let file = File::open(path).unwrap();
 		let reader = BufReader::new(file);
@@ -43,6 +31,7 @@ impl Playlist {
 		serde_json::to_writer_pretty(writer, &self).unwrap();
 	}
 
+	/*
 	pub fn set_cursor_position(&mut self, cursor_position: usize, num_rows: usize) {
 		self.cursor_position = cursor_position;
 		self.normalize_scroll_position(num_rows)
@@ -55,4 +44,5 @@ impl Playlist {
 			self.cursor_position as i32
 		) as usize;
 	}
+	 */
 }
