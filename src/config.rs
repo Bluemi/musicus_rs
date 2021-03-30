@@ -6,7 +6,6 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use std::env::current_dir;
 use crate::musicus::ViewState;
-use crate::song::song_buffer::SongBuffer;
 
 pub fn get_config_directory() -> PathBuf {
 	dirs::config_dir().unwrap().join("musicus")
@@ -18,6 +17,10 @@ pub fn get_playlist_directory() -> PathBuf {
 
 pub fn get_cache_path() -> PathBuf {
 	get_config_directory().join("cache.json")
+}
+
+pub fn get_song_buffer_path() -> PathBuf {
+	get_config_directory().join("lib.json")
 }
 
 pub fn init_config() {
@@ -41,7 +44,6 @@ pub struct Cache {
 	pub view: ViewState,
 	pub filemanager_cache: FileManagerCache,
 	pub playlist_manager_cache: PlaylistManagerCache,
-	pub song_buffer: SongBuffer,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -92,7 +94,6 @@ impl Cache {
 				view: PlaylistView::Overview,
 				shown_playlist_index: 0,
 			},
-			song_buffer: SongBuffer::new(),
 		}
 	}
 }

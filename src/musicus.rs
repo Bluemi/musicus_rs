@@ -68,6 +68,13 @@ impl Musicus {
 			Cache::default()
 		};
 
+		let song_buffer = if let Ok(song_buffer) = SongBuffer::load() {
+			song_buffer
+		} else {
+			debug_manager.add_entry_color("Failed to load song buffer. Using empty.".to_string(), RenderColor::RED, RenderColor::BLACK);
+			SongBuffer::new()
+		};
+
 		// setup curses
 		let window = pancurses::initscr();
 		Musicus::init_curses(&window);
@@ -92,7 +99,7 @@ impl Musicus {
 			file_manager: FileManager::new((window.get_max_y()-1) as usize, &cache.filemanager_cache),
 			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache, (window.get_max_y()-1) as usize),
 			debug_manager,
-			song_buffer: cache.song_buffer,
+			song_buffer,
 			window,
 			color_pairs: HashMap::new(),
 			color_pair_counter: 1,
@@ -126,9 +133,11 @@ impl Musicus {
 				current_directory: self.file_manager.current_path.clone(),
 			},
 			playlist_manager_cache: self.playlist_manager.create_cache(),
-			song_buffer: self.song_buffer.clone(),
 		};
 		cache.dump();
+
+		// dump song buffer
+		self.song_buffer.dump();
 	}
 
 	pub fn run(&mut self) {
