@@ -60,7 +60,7 @@ impl RenderPanel {
 	pub fn get_width(&self) -> usize {
 		let mut width = 0;
 		for e in &self.entries {
-			width = width.max(e.text.len());
+			width = width.max(e.get_width());
 		}
 		width
 	}
@@ -73,6 +73,10 @@ impl RenderEntry {
 			foreground_color,
 			background_color,
 		}
+	}
+
+	pub fn get_width(&self) -> usize {
+		self.text.len()
 	}
 }
 

@@ -1,4 +1,4 @@
-use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor, Alignment};
+use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor, Alignment, format_duration};
 use std::path::{Path, PathBuf};
 use crate::file_manager::file_utils::get_dir_entries;
 use std::fs::{File, OpenOptions};
@@ -149,7 +149,8 @@ impl PlaylistManager {
 
 		// add shown playlist
 		if let Some(playlist) = self.playlists.get(self.shown_playlist_index) {
-			let mut panel = RenderPanel::new(0);
+			let mut songs_panel = RenderPanel::new(0);
+			let mut duration_panel = RenderPanel::new(0);
 			for (index, song_id) in playlist.songs.iter().enumerate() {
 				let (foreground_color, background_color) = if play_state.is_song_played(self.shown_playlist_index, index) {
 					if index == playlist.cursor_position {
@@ -173,10 +174,21 @@ impl PlaylistManager {
 					}
 				};
 				let song = song_buffer.get(*song_id).unwrap();
-				panel.entries.push(RenderEntry::new(song.get_title().to_string(), foreground_color, background_color));
+				songs_panel.entries.push(RenderEntry::new(
+					song.get_title().to_string(),
+					foreground_color,
+					background_color
+				));
+				duration_panel.entries.push(RenderEntry::new(
+					song.get_total_duration().map_or("".to_string(), |d| format_duration(d)),
+					foreground_color,
+					background_color,
+				));
 			}
-			panel.scroll_position = playlist.scroll_position;
-			render_object.panels.push(panel);
+			songs_panel.scroll_position = playlist.scroll_position;
+			duration_panel.scroll_position = playlist.scroll_position;
+			render_object.panels.push(songs_panel);
+			render_object.panels.push(duration_panel);
 		}
 
 		render_object
