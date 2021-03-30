@@ -3,6 +3,12 @@ use std::time::Duration;
 
 pub struct RenderObject {
 	pub panels: Vec<RenderPanel>,
+	pub alignment: Alignment,
+}
+
+pub enum Alignment {
+	Left,
+	Right,
 }
 
 pub struct RenderPanel {
@@ -31,9 +37,10 @@ pub trait Renderable {
 }
 
 impl RenderObject {
-	pub fn new() -> RenderObject {
+	pub fn new(alignment: Alignment) -> RenderObject {
 		RenderObject {
 			panels: Vec::new(),
+			alignment,
 		}
 	}
 

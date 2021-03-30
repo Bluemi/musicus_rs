@@ -1,6 +1,6 @@
 use crate::audio_backend::{AudioBackend, AudioCommand, AudioInfo, SeekCommand, SeekDirection, AudioBackendCommand};
 use crate::file_manager::FileManager;
-use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel, format_duration};
+use crate::render::{RenderObject, Renderable, RenderColor, RenderPanel, format_duration, Alignment};
 use pancurses::{Window, Input};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -361,7 +361,10 @@ impl Musicus {
 	}
 
 	fn render_panels(&mut self, render_object: &RenderObject) {
-		let mut x_pos = (self.window.get_max_x() - (render_object.get_panels_size() as i32 + render_object.panels.len() as i32*FILE_BROWSER_OFFSET)).min(0);
+		let mut x_pos = match render_object.alignment {
+			Alignment::Left => 0,
+			Alignment::Right => (self.window.get_max_x() - (render_object.get_panels_size() as i32 + render_object.panels.len() as i32*FILE_BROWSER_OFFSET)).min(0),
+		};
 		for panel in render_object.panels.iter() {
 			self.render_panel(panel, x_pos);
 			x_pos += panel.get_width() as i32 + FILE_BROWSER_OFFSET;
@@ -409,6 +412,7 @@ impl Musicus {
 			if (e.text.len() as i32) >= -x_pos {
 				let line = &e.text[(-x_pos).max(0) as usize..];
 				let line = format!("{: <width$}", line, width=panel.get_width() + FILE_BROWSER_OFFSET as usize);
+				let line = &line[0..((self.window.get_max_x() - x_pos).max(0) as usize).min(line.len())];
 				self.window.mvaddstr(y_pos as i32, x_pos.max(0), line);
 			}
 		}

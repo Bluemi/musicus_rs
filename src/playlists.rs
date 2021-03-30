@@ -1,4 +1,4 @@
-use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor};
+use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor, Alignment};
 use std::path::{Path, PathBuf};
 use crate::file_manager::file_utils::get_dir_entries;
 use std::fs::{File, OpenOptions};
@@ -116,7 +116,7 @@ impl PlaylistManager {
 	}
 
 	pub fn get_render_object(&self, play_state: &PlayState, song_buffer: &SongBuffer) -> RenderObject {
-		let mut render_object = RenderObject::new();
+		let mut render_object = RenderObject::new(Alignment::Left);
 
 		// add overview panel
 		let mut overview_panel = RenderPanel::new(0);

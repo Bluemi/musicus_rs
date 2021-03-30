@@ -3,7 +3,7 @@ use std::mem::swap;
 use std::path::{Path, PathBuf};
 
 use crate::config::FileManagerCache;
-use crate::render::{Renderable, RenderColor, RenderEntry, RenderObject, RenderPanel};
+use crate::render::{Renderable, RenderColor, RenderEntry, RenderObject, RenderPanel, Alignment};
 use crate::file_manager::file_utils::{normalize_dir, get_dir_entries};
 
 pub mod file_utils;
@@ -86,7 +86,7 @@ impl FileManager {
 
 impl Renderable for FileManager {
 	fn get_render_object(&self) -> RenderObject {
-		let mut render_object = RenderObject::new();
+		let mut render_object = RenderObject::new(Alignment::Right);
 		let ancestors = self.current_path.ancestors().collect::<Vec<&Path>>();
 		for (ancestor_index, ancestor) in ancestors.iter().rev().enumerate() {
 			let (cursor_position, scroll_position) = self.positions.get(&PathBuf::from(ancestor)).unwrap_or(&(0, 0));

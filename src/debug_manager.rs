@@ -1,4 +1,4 @@
-use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor};
+use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor, Alignment};
 
 pub struct DebugManager {
     entries: Vec<Entry>,
@@ -39,7 +39,7 @@ impl DebugManager {
     }
 
     pub fn get_render_object(&self) -> RenderObject {
-        let mut render_object = RenderObject::new();
+        let mut render_object = RenderObject::new(Alignment::Left);
         let mut render_panel = RenderPanel::new(0);
         for entry in &self.entries {
             let render_entry = RenderEntry::new(entry.text.clone(), entry.foreground_color, entry.background_color);
