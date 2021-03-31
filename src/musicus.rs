@@ -98,7 +98,7 @@ impl Musicus {
 			command_sender: audio_backend_sender,
             info_receiver,
 			file_manager: FileManager::new((window.get_max_y()-1) as usize, &cache.filemanager_cache),
-			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache, (window.get_max_y()-1) as usize),
+			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache),
 			debug_manager,
 			song_buffer,
 			window,
@@ -160,11 +160,15 @@ impl Musicus {
 			self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(song.clone()))).unwrap();
 			self.play_state.next_song(&self.playlist_manager);
 			if let PlayPosition::Playlist(playlist_index, song_index) = &mut self.play_state.play_position {
-				self.playlist_manager.set_cursor_position(*playlist_index, *song_index);
+				self.playlist_manager.set_cursor_position(*playlist_index, *song_index, self.get_num_rows());
 			}
 		} else {
 			self.debug_manager.add_entry("no next song to play".to_string());
 		}
+	}
+
+	fn get_num_rows(&self) -> usize {
+		(self.window.get_max_y()-1) as usize
 	}
 
 	fn handle_audio_backend(&mut self) -> bool {
@@ -254,8 +258,8 @@ impl Musicus {
 						(ENTER_CHAR, ViewState::Playlists) => self.playlist_manager_context_action(),
 						('h', ViewState::Playlists) => self.playlist_manager.move_left(),
 						('l', ViewState::Playlists) => self.playlist_manager.move_right(),
-						('j', ViewState::Playlists) => self.playlist_manager.move_down(),
-						('k', ViewState::Playlists) => self.playlist_manager.move_up(),
+						('j', ViewState::Playlists) => self.playlist_manager.move_down(self.get_num_rows()),
+						('k', ViewState::Playlists) => self.playlist_manager.move_up(self.get_num_rows()),
 						('j', ViewState::Debug) => self.debug_manager.scroll(1),
 						('k', ViewState::Debug) => self.debug_manager.scroll(-1),
 						('c', _) => self.toggle_pause(),

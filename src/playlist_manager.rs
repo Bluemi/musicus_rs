@@ -17,7 +17,6 @@ pub struct PlaylistManager {
 	pub shown_playlist_index: usize,
 	pub playlists: Vec<Playlist>,
 	pub view: PlaylistView,
-	pub num_rows: usize,
 	pub next_playlist_id: PlaylistID,
 	scroll_cursor_positions: HashMap<PlaylistID, (usize, usize)>,
 }
@@ -30,12 +29,11 @@ pub enum PlaylistView {
 }
 
 impl PlaylistManager {
-	pub fn new(playlists: Vec<Playlist>, cache: &PlaylistManagerCache, num_rows: usize) -> PlaylistManager {
+	pub fn new(playlists: Vec<Playlist>, cache: &PlaylistManagerCache) -> PlaylistManager {
 		PlaylistManager {
 			shown_playlist_index: cache.shown_playlist_index,
 			playlists,
 			view: cache.view,
-			num_rows,
 			next_playlist_id: cache.next_playlist_id,
 			scroll_cursor_positions: cache.scroll_cursor_positions.clone(),
 		}
@@ -88,7 +86,7 @@ impl PlaylistManager {
 		self.view = PlaylistView::Playlist;
 	}
 
-	pub fn move_down(&mut self) {
+	pub fn move_down(&mut self, num_rows: usize) {
 		match self.view {
 			PlaylistView::Overview => {
 				if self.shown_playlist_index < self.playlists.len() - 1 {
@@ -98,13 +96,13 @@ impl PlaylistManager {
 			PlaylistView::Playlist => {
 				if let Some(playlist_id) = self.get_mut_shown_playlist().map(|p| p.id) {
 					let cursor_pos = self.scroll_cursor_positions.get(&playlist_id).map_or(0, |(_s, c)| *c);
-					self.set_cursor_position(self.shown_playlist_index, cursor_pos+1);
+					self.set_cursor_position(self.shown_playlist_index, cursor_pos+1, num_rows);
 				}
 			}
 		}
 	}
 
-	pub fn move_up(&mut self) {
+	pub fn move_up(&mut self, num_rows: usize) {
 		match self.view {
 			PlaylistView::Overview => {
 				if self.shown_playlist_index > 0 {
@@ -115,19 +113,19 @@ impl PlaylistManager {
 				if let Some(playlist_id) = self.get_mut_shown_playlist().map(|p| p.id) {
 					let cursor_pos = self.scroll_cursor_positions.get(&playlist_id).map_or(0, |(_s, c)| *c);
 					if cursor_pos > 0 {
-						self.set_cursor_position(self.shown_playlist_index, cursor_pos - 1);
+						self.set_cursor_position(self.shown_playlist_index, cursor_pos - 1, num_rows);
 					}
 				}
 			}
 		}
 	}
 
-	pub fn set_cursor_position(&mut self, playlist_index: usize, cursor: usize) {
+	pub fn set_cursor_position(&mut self, playlist_index: usize, cursor: usize, num_rows: usize) {
 		if let Some(playlist) = self.playlists.get(playlist_index) {
 			let cursor = cursor.min(playlist.songs.len().checked_sub(1).unwrap_or(0)) as i32;
 			let scroll = self.scroll_cursor_positions.get(&playlist.id).map_or(0, |(s, _c)| *s) as i32;
 			let scroll = scroll.clamp(
-				cursor - self.num_rows as i32 + 1,
+				cursor - num_rows as i32 + 1,
 				cursor
 			) as usize;
 			self.scroll_cursor_positions.insert(playlist.id, (scroll, cursor as usize));
