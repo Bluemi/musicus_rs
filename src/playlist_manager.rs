@@ -71,7 +71,7 @@ impl PlaylistManager {
 	}
 
 	pub fn get_shown_song_index(&mut self) -> Option<usize> {
-		return self.scroll_cursor_positions.get(&self.get_shown_playlist()?.id).map(|(_s, c)| *c)
+		Some(self.scroll_cursor_positions.get(&self.get_shown_playlist()?.id).map(|(_s, c)| *c).unwrap_or(0))
 	}
 
 	pub fn get_song(&self, playlist_index: usize, song_index: usize) -> Option<SongID> {
