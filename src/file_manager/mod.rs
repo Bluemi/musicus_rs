@@ -11,11 +11,10 @@ pub mod file_utils;
 pub struct FileManager {
 	pub current_path: PathBuf,
 	pub positions: HashMap<PathBuf, (usize, usize)>, // maps Path to (cursor position, scroll position)
-	pub num_rows: usize,
 }
 
 impl FileManager {
-	pub fn new(num_rows: usize, cache: &FileManagerCache) -> FileManager {
+	pub fn new(cache: &FileManagerCache) -> FileManager {
 		let mut current_path = cache.current_directory.clone();
 
 		normalize_dir(&mut current_path);
@@ -32,7 +31,6 @@ impl FileManager {
 		FileManager {
 			current_path,
 			positions,
-			num_rows,
 		}
 	}
 
@@ -64,18 +62,18 @@ impl FileManager {
 		self.move_right();
 	}
 
-	fn move_cursor_down(&mut self) {
+	fn move_cursor_down(&mut self, num_rows: usize) {
 		let num_entries = self.get_current_num_entries();
 		let (cursor_position, scroll_position) = self.positions.entry(PathBuf::from(&self.current_path)).or_insert((0, 0));
 		if *cursor_position < num_entries-1 {
 			*cursor_position += 1;
-			*scroll_position = (*scroll_position as i32).max(*cursor_position as i32-self.num_rows as i32 + 1) as usize;
+			*scroll_position = (*scroll_position as i32).max(*cursor_position as i32-num_rows as i32 + 1) as usize;
 		}
 	}
 
-	pub fn move_down(&mut self) {
+	pub fn move_down(&mut self, num_rows: usize) {
 		self.move_left();
-		self.move_cursor_down();
+		self.move_cursor_down(num_rows);
 		self.move_right();
 	}
 

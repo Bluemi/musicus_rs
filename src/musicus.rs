@@ -97,7 +97,7 @@ impl Musicus {
 		Musicus {
 			command_sender: audio_backend_sender,
             info_receiver,
-			file_manager: FileManager::new((window.get_max_y()-1) as usize, &cache.filemanager_cache),
+			file_manager: FileManager::new(&cache.filemanager_cache),
 			playlist_manager: PlaylistManager::new(playlists, &cache.playlist_manager_cache),
 			debug_manager,
 			song_buffer,
@@ -252,7 +252,7 @@ impl Musicus {
 						('y', ViewState::FileManager) => self.file_manager_add_to_playlist(),
 						('n', ViewState::FileManager) => self.file_manager_new_playlist(),
 						('h', ViewState::FileManager) => self.file_manager.move_left(),
-						('j', ViewState::FileManager) => self.file_manager.move_down(),
+						('j', ViewState::FileManager) => self.file_manager.move_down(self.get_num_rows()),
 						('k', ViewState::FileManager) => self.file_manager.move_up(),
 						('l', ViewState::FileManager) => self.file_manager.move_right(),
 						(ENTER_CHAR, ViewState::Playlists) => self.playlist_manager_context_action(),
