@@ -268,8 +268,8 @@ impl Musicus {
 						('2', _) => self.view_state = ViewState::Playlists,
 						('3', _) => self.view_state = ViewState::Debug,
 						('s', _) => self.play_state.toggle_mode(),
-						('+', _) => self.change_volume(10),
-						('-', _) => self.change_volume(-10),
+						('+', _) => self.change_volume(5),
+						('-', _) => self.change_volume(-5),
 						('i', ViewState::FileManager) => self.playlist_manager.import_playlists(&self.file_manager.current_path, &mut self.song_buffer),
 						_ => {
 							if !matches!(self.view_state, ViewState::Debug) {
