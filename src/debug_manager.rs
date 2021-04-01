@@ -29,6 +29,10 @@ impl DebugManager {
         self.add_entry_color(text, RenderColor::WHITE, RenderColor::BLACK);
     }
 
+    pub fn add_error_entry(&mut self, text: String) {
+        self.add_entry_color(text, RenderColor::RED, RenderColor::BLACK);
+    }
+
     pub fn add_entry_color(&mut self, text: String, foreground_color: RenderColor, background_color: RenderColor) {
         self.entries.push(Entry {
             text,

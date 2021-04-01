@@ -7,7 +7,6 @@ use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor, Alignme
 use crate::file_manager::file_utils::get_dir_entries;
 use crate::config::PlaylistManagerCache;
 use crate::play_state::PlayState;
-use crate::musicus::log;
 use crate::song::SongID;
 use crate::song::song_buffer::SongBuffer;
 use crate::song::playlist::{Playlist, PlaylistID};
@@ -243,15 +242,15 @@ impl PlaylistManager {
 		}
 	}
 
-	pub fn import_playlists(&mut self, path: &Path, song_buffer: &mut SongBuffer) {
+	pub fn import_playlists(&mut self, path: &Path, song_buffer: &mut SongBuffer) -> Vec<String> {
+		let mut errors = Vec::new();
 		if path.is_file() {
 			// TODO: extract method
 			match PlaylistManager::try_import_playlist_file(&path) {
 				Ok(paths) => {
-					log(&format!("paths: {:?}\n", paths));
 					self.add_playlist_from_files(&paths, &path, song_buffer);
 				}
-				Err(e) => log(&format!("error importing playlist file: {}", e))
+				Err(e) => errors.push(format!("error importing playlist file: {}", e))
 			}
 		} else {
 			for entry in get_dir_entries(path) {
@@ -260,10 +259,11 @@ impl PlaylistManager {
 						self.add_playlist_from_files(&paths, &entry.path, song_buffer);
 					}
 				} else {
-					self.import_playlists(&entry.path, song_buffer);
+					errors.extend(self.import_playlists(&entry.path, song_buffer));
 				}
 			}
 		}
+		errors
 	}
 
 	fn add_playlist_from_files(&mut self, paths: &Vec<PathBuf>, path: &Path, song_buffer: &mut SongBuffer) -> PlaylistID {

@@ -273,7 +273,12 @@ impl Musicus {
 						('s', _) => self.play_state.toggle_mode(),
 						('+', _) => self.change_volume(5),
 						('-', _) => self.change_volume(-5),
-						('i', ViewState::FileManager) => self.playlist_manager.import_playlists(&self.file_manager.current_path, &mut self.song_buffer),
+						('i', ViewState::FileManager) => {
+							let errors = self.playlist_manager.import_playlists(&self.file_manager.current_path, &mut self.song_buffer);
+							for error in errors {
+								self.debug_manager.add_error_entry(error);
+							}
+						},
 						_ => {
 							if !matches!(self.view_state, ViewState::Debug) {
 								got_valid_input = false;

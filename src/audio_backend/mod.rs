@@ -7,7 +7,6 @@ use done_access::DoneAccess;
 use periodic_access::PeriodicAccess;
 use start_access::StartAccess;
 
-use crate::musicus::log;
 use crate::audio_backend::audio_buffer::{AudioBuffer, OpenError};
 use crate::song::{Song, SongID};
 
@@ -223,8 +222,6 @@ impl AudioBackend {
 					assert_eq!(current_song.song.get_path(), playing_update.song.get_path());
 					current_song.set_real_play_duration(playing_update.duration_played);
 					self.info_sender.send(AudioInfo::Playing(playing_update.song.clone(), current_song.get_real_play_duration(), current_song.total_duration)).unwrap();
-				} else {
-					log(&format!("ERROR: current song is None, but got Playing update\n"));
 				}
 			}
 			AudioUpdate::SongEnded(path) => {
