@@ -231,6 +231,9 @@ impl Musicus {
 				}
 				AudioInfo::SongDuration(song_id, duration) => {
 					self.song_buffer.update_total_duration(song_id, duration);
+					if matches!(self.view_state, ViewState::Playlists) {
+						has_to_render = true;
+					}
 				}
 				AudioInfo::Queued(_) => {}
 			}
