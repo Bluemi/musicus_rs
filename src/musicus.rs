@@ -107,7 +107,7 @@ impl Musicus {
 			play_state: PlayState::new(cache.play_mode),
 			view_state: cache.view,
 			playing_song_info: None,
-			volume: 100,
+			volume: cache.volume,
 		}
 	}
 
@@ -135,6 +135,7 @@ impl Musicus {
 				current_directory: self.file_manager.current_path.clone(),
 			},
 			playlist_manager_cache: self.playlist_manager.create_cache(),
+			volume: self.volume,
 		};
 		cache.dump();
 
