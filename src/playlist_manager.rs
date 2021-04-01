@@ -16,7 +16,6 @@ pub struct PlaylistManager {
 	pub shown_playlist_index: usize,
 	pub playlists: Vec<Playlist>,
 	pub view: PlaylistView,
-	pub next_playlist_id: PlaylistID,
 	scroll_cursor_positions: HashMap<PlaylistID, (usize, usize)>,
 }
 
@@ -33,7 +32,6 @@ impl PlaylistManager {
 			shown_playlist_index: cache.shown_playlist_index,
 			playlists,
 			view: cache.view,
-			next_playlist_id: cache.next_playlist_id,
 			scroll_cursor_positions: cache.scroll_cursor_positions.clone(),
 		}
 	}
@@ -42,7 +40,6 @@ impl PlaylistManager {
 		PlaylistManagerCache {
 			view: self.view,
 			shown_playlist_index: self.shown_playlist_index,
-			next_playlist_id: self.next_playlist_id,
 			scroll_cursor_positions: self.scroll_cursor_positions.clone(),
 		}
 	}
@@ -275,9 +272,21 @@ impl PlaylistManager {
 		self.add_playlist_with_songs(path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or("<no-name>".to_string()), songs)
 	}
 
+	fn get_next_playlist_id(&self) -> PlaylistID {
+		let mut playlist_id: PlaylistID = 0;
+		loop {
+			for playlist in &self.playlists {
+				if playlist.id == playlist_id {
+					playlist_id += 1;
+					break;
+				}
+			}
+			return playlist_id;
+		}
+	}
+
 	pub fn add_playlist_with_songs(&mut self, name: String, songs: Vec<SongID>) -> PlaylistID {
-		let id = self.next_playlist_id;
-		self.next_playlist_id += 1;
+		let id = self.get_next_playlist_id();
 		self.playlists.push(Playlist {
 			id,
 			name,

@@ -60,7 +60,6 @@ pub struct FileManagerCache {
 pub struct PlaylistManagerCache {
 	pub view: PlaylistView,
 	pub shown_playlist_index: usize,
-	pub next_playlist_id: PlaylistID,
 	pub scroll_cursor_positions: HashMap<PlaylistID, (usize, usize)>
 }
 
@@ -101,7 +100,6 @@ impl Cache {
 			playlist_manager_cache: PlaylistManagerCache {
 				view: PlaylistView::Overview,
 				shown_playlist_index: 0,
-				next_playlist_id: 0,
 				scroll_cursor_positions: HashMap::new(),
 			},
 			volume: 100,
