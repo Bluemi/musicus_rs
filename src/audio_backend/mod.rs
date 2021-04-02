@@ -26,6 +26,7 @@ pub struct AudioBackend {
 	update_sender: Sender<AudioBackendCommand>, // internal updates for source state
 	current_song: Option<CurrentSongState>, //
 	audio_buffer: AudioBuffer,
+	volume: f32,
 }
 
 struct CurrentSongState {
@@ -166,7 +167,7 @@ impl AudioBackendCommand {
 }
 
 impl AudioBackend {
-	pub fn new(info_sender: Sender<AudioInfo>, audio_backend_sender: Sender<AudioBackendCommand>) -> AudioBackend {
+	pub fn new(info_sender: Sender<AudioInfo>, audio_backend_sender: Sender<AudioBackendCommand>, volume: f32) -> AudioBackend {
 		let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
 		AudioBackend {
 			sink: rodio::Sink::try_new(&stream_handle).unwrap(),
@@ -176,6 +177,7 @@ impl AudioBackend {
 			update_sender: audio_backend_sender,
 			current_song: None,
 			audio_buffer: AudioBuffer::new(),
+			volume,
 		}
 	}
 
@@ -196,12 +198,11 @@ impl AudioBackend {
 				}
 			}
 		}
-
 	}
 
 	fn handle_command(&mut self, command: AudioCommand) {
 		match command {
-			AudioCommand::Play(song) => Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &song, None, &self.audio_buffer),
+			AudioCommand::Play(song) => Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &song, None, &self.audio_buffer, self.volume),
 			AudioCommand::Queue(song) => Self::queue(&mut self.sink, &self.update_sender, &self.info_sender, &song, None, &self.audio_buffer),
 			AudioCommand::Load(song) => self.audio_buffer.load(song.get_path().to_path_buf()),
 			AudioCommand::Pause => self.pause(),
@@ -213,6 +214,7 @@ impl AudioBackend {
 
 	fn set_volume(&mut self, volume: f32) {
 		self.sink.set_volume(volume);
+		self.volume = volume;
 	}
 
 	fn handle_update(&mut self, update: AudioUpdate) {
@@ -251,7 +253,7 @@ impl AudioBackend {
 				}
 			};
 			current_song.play_duration = Duration::new(0, 0);
-			Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &current_song.song, Some(current_song.get_real_play_duration()), &self.audio_buffer);
+			Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &current_song.song, Some(current_song.get_real_play_duration()), &self.audio_buffer, self.volume);
 		}
 	}
 
@@ -263,11 +265,13 @@ impl AudioBackend {
 		song: &Song,
 		skip: Option<Duration>,
 		audio_buffer: &AudioBuffer,
+        volume: f32,
 	) {
 		if !sink.empty() {
 			sink.stop();
 			*sink = rodio::Sink::try_new(stream_handle).unwrap();
 		}
+		sink.set_volume(volume);
 		Self::queue(sink, update_sender, info_sender, &song, skip, audio_buffer);
 		sink.play();
 	}

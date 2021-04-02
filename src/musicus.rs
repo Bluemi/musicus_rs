@@ -86,8 +86,10 @@ impl Musicus {
 
 		let audio_backend_sender_clone = audio_backend_sender.clone();
 
+		let backend_volume = cache.volume as f32 * 0.01;
+
 		thread::spawn(move || {
-			let mut audio_backend = AudioBackend::new(info_sender, audio_backend_sender_clone);
+			let mut audio_backend = AudioBackend::new(info_sender, audio_backend_sender_clone, backend_volume);
 			audio_backend.run(audio_backend_receiver);
 		});
 
