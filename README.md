@@ -11,8 +11,11 @@ If you find a bug, I would appreciate it if you write an issue report.
 Since ncurses prevents the normal backtrace output, you can use the following command
 in a bash shell to generate a backtrace:
 ```bash
-RUST_BACKTRACE=full cargo run --quiet --release 2> error_log.txt
+RUST_BACKTRACE=full cargo run 2> error_log.txt
 ```
+
+In debug mode it takes some time to start the program and play songs, but the backtrace is more useful.
+If it takes too long, add `--release` to the cargo command.
 
 ### Discussions
 If you have a question or an idea, you are very welcome to express it in the
