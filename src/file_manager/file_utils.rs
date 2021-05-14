@@ -4,6 +4,14 @@ use std::fs;
 
 pub fn get_dir_entries(path: &Path) -> Vec<DirectoryEntry> {
 	let mut entries = Vec::new();
+	if path.is_file() {
+		entries.push(DirectoryEntry {
+			is_file: true,
+			filename: String::from(path.file_name().unwrap().to_str().unwrap()),
+			path: PathBuf::from(path),
+		});
+		return entries;
+	}
 	if let Ok(read_dir) = path.read_dir() {
 		for entry in read_dir {
 			if let Ok(entry) = entry {
@@ -18,7 +26,7 @@ pub fn get_dir_entries(path: &Path) -> Vec<DirectoryEntry> {
 	entries
 }
 
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Eq, Ord, PartialEq, PartialOrd, Debug)]
 pub struct DirectoryEntry {
 	pub is_file: bool,
 	pub filename: String,

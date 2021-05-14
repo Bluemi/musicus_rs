@@ -352,7 +352,11 @@ impl Musicus {
 
 	fn file_manager_add_to_playlist(&mut self) {
 		let songs = Song::songs_from_path(&self.file_manager.current_path, &mut self.song_buffer);
+		let len_songs = songs.len();
 		self.playlist_manager.add_songs(songs);
+		if let Some(shown_playlist) = self.playlist_manager.get_shown_playlist() {
+			self.debug_manager.add_entry(format!("adding {} songs to playlist \"{}\"", len_songs, shown_playlist.name));
+		}
 	}
 
 	fn file_manager_new_playlist(&mut self) {
