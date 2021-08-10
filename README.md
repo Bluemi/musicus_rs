@@ -70,3 +70,4 @@ playlists. If you want to play a song in a playlist, press `Enter`.
 The last view is the Debug View. Here you can see logs of musicus.
 
 You can scroll by pressing `j` or `k`.
+
