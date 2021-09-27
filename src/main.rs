@@ -1,4 +1,3 @@
-#![feature(or_patterns)]
 #![feature(destructuring_assignment)]
 #![feature(duration_consts_2)]
 
