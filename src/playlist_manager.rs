@@ -70,6 +70,18 @@ impl PlaylistManager {
 		Some(self.scroll_cursor_positions.get(&self.get_shown_playlist()?.id).map(|(_s, c)| *c).unwrap_or(0))
 	}
 
+	pub fn delete_current_song(&mut self) {
+		let mut cursor_position = 0;
+		if let Some(shown_playlist) = self.get_shown_playlist() {
+			cursor_position = self.scroll_cursor_positions.get(&shown_playlist.id).map_or(0, |(_s, c)| *c);
+		}
+		if let Some(shown_playlist) = self.get_mut_shown_playlist() {
+			if cursor_position < shown_playlist.songs.len() {
+				shown_playlist.songs.remove(cursor_position);
+			}
+		}
+	}
+
 	pub fn get_song(&self, playlist_index: usize, song_index: usize) -> Option<SongID> {
 		self.playlists.get(playlist_index)?.songs.get(song_index).map(|s| *s)
 	}

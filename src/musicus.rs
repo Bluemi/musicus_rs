@@ -275,6 +275,7 @@ impl Musicus {
 						('s', _) => self.play_state.toggle_mode(),
 						('+', _) => self.change_volume(5),
 						('-', _) => self.change_volume(-5),
+						('D', ViewState::Playlists) => self.playlist_manager.delete_current_song(),
 						('i', ViewState::FileManager) => {
 							let errors = self.playlist_manager.import_playlists(&self.file_manager.current_path, &mut self.song_buffer);
 							for error in errors {
