@@ -38,6 +38,7 @@ pub struct Musicus {
 	view_state: ViewState,
 	playing_song_info: Option<SongInfo>,
 	volume: i32,
+	follow: bool,
 }
 
 struct SongInfo {
@@ -110,6 +111,7 @@ impl Musicus {
 			view_state: cache.view,
 			playing_song_info: None,
 			volume: cache.volume,
+			follow: cache.follow,
 		}
 	}
 
@@ -138,6 +140,7 @@ impl Musicus {
 			},
 			playlist_manager_cache: self.playlist_manager.create_cache(),
 			volume: self.volume,
+			follow: self.follow,
 		};
 		cache.dump();
 
@@ -162,11 +165,17 @@ impl Musicus {
 			let song = self.song_buffer.get(song_id).unwrap();
 			self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(song.clone()))).unwrap();
 			self.play_state.next_song(&self.playlist_manager);
-			if let PlayPosition::Playlist(playlist_index, song_index) = &mut self.play_state.play_position {
-				self.playlist_manager.set_cursor_position(*playlist_index, *song_index, self.get_num_rows());
+			if self.follow {
+				self.follow_playlist();
 			}
 		} else {
 			self.debug_manager.add_entry("no next song to play".to_string());
+		}
+	}
+
+	fn follow_playlist(&mut self) {
+		if let PlayPosition::Playlist(playlist_index, song_index) = &mut self.play_state.play_position {
+			self.playlist_manager.set_cursor_position(*playlist_index, *song_index, self.get_num_rows());
 		}
 	}
 
@@ -176,6 +185,7 @@ impl Musicus {
 
 	fn handle_audio_backend(&mut self) -> bool {
 		let mut has_to_render = false;
+		let mut should_follow = false;
 		for info in self.info_receiver.try_iter() {
 			match info {
 				AudioInfo::Playing(_song, play_position, total_duration) => {
@@ -229,6 +239,7 @@ impl Musicus {
 					has_to_render = true;
 					if start_duration == Duration::new(0, 0) {
 						self.debug_manager.add_entry(format!("start song \"{}\"", song.get_title()));
+						should_follow = true;
 					}
 				}
 				AudioInfo::SongDuration(song_id, duration) => {
@@ -239,6 +250,9 @@ impl Musicus {
 				}
 				AudioInfo::Queued(_) => {}
 			}
+		}
+		if should_follow && self.follow {
+			self.follow_playlist();
 		}
 		has_to_render
 	}
@@ -273,6 +287,8 @@ impl Musicus {
 						('2', _) => self.view_state = ViewState::Playlists,
 						('3', _) => self.view_state = ViewState::Debug,
 						('s', _) => self.play_state.toggle_mode(),
+						('f', _) => self.follow = !self.follow,
+						('F', ViewState::Playlists) => self.follow_playlist(),
 						('+', _) => self.change_volume(5),
 						('-', _) => self.change_volume(-5),
 						('D', ViewState::Playlists) => self.playlist_manager.delete_current_song(),
@@ -405,8 +421,9 @@ impl Musicus {
 				self.window.get_max_y()-1,
 				1,
 				format!(
-					"{} {}  {} / {}  vol: {}%",
+					"{}{} {}  {} / {}  vol: {}%",
 					play_mode_str,
+					if self.follow { "F" } else { " " },
 					current_song.title,
 					format_duration(current_song.play_position),
 					format_duration(current_song.total_duration),
