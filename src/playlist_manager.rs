@@ -286,7 +286,7 @@ impl PlaylistManager {
 
 	fn get_next_playlist_id(&self) -> PlaylistID {
 		for playlist_id in 0.. {
-			if self.playlists.iter().find(|pl| pl.id == playlist_id).is_none() {
+			if !self.playlists.iter().any(|pl| pl.id == playlist_id) {
 				return playlist_id;
 			}
 		}
