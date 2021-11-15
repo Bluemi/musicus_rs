@@ -4,7 +4,7 @@ use std::io::{BufReader, BufRead};
 use serde::{Serialize, Deserialize};
 
 use crate::render::{RenderObject, RenderPanel, RenderEntry, RenderColor, Alignment, format_duration};
-use crate::file_manager::file_utils::get_dir_entries;
+use crate::file_manager::file_utils::{get_common_ends, get_dir_entries};
 use crate::config::PlaylistManagerCache;
 use crate::play_state::PlayState;
 use crate::song::SongID;
@@ -305,6 +305,43 @@ impl PlaylistManager {
 			songs,
 		});
 		id
+	}
+
+	pub fn optimize_names(&mut self, song_buffer: &mut SongBuffer) {
+		if let Some(current_playlist) = self.get_shown_playlist() {
+			// let mut per_directory: HashMap<Path, Vec<SongID>> = HashMap::new();
+			let mut per_directory = HashMap::new();
+			for song_id in &current_playlist.songs {
+				let song = song_buffer.get(*song_id).expect(&format!("song id {} not found in song_buffer", song_id));  // TODO fix expect
+				let parent = PathBuf::from(song.get_path().parent().unwrap()); // TODO fix unwrap
+				if !per_directory.contains_key(&parent) {
+					per_directory.insert(parent.clone(), Vec::<SongID>::new());
+				}
+				// let x: HashMap<&Path, Vec<SongID>> = per_directory.clone();
+				per_directory.get_mut(&parent).unwrap().push(*song_id);
+			}
+			for song_ids in per_directory.values() {
+				// eprintln!("{:?} -> {:?}", k, v);
+				PlaylistManager::optimize_names_impl(song_buffer, song_ids);
+			}
+		}
+	}
+
+	fn optimize_names_impl(song_buffer: &mut SongBuffer, song_ids: &[SongID]) {
+		// matching same name parts only makes sense for more than one song
+		if song_ids.len() > 1 {
+			let (start, end) = get_common_ends(song_ids.iter().map(|song_id| song_buffer.get(*song_id).unwrap().get_title())).unwrap();
+			let (start, end) = (String::from(start), String::from(end));
+
+			for (index, song_id) in song_ids.iter().enumerate() {
+				let song = song_buffer.get_mut(*song_id).unwrap();
+				let title = song.get_title();
+				let title = &title[start.len()..title.len()-end.len()];
+				let title = normalize_title(title, index+1);
+				song.set_title(&title);
+			}
+		}
+
 	}
 }
 

@@ -29,6 +29,10 @@ impl Song {
 		&self.title
 	}
 
+	pub fn set_title(&mut self, title: &str) {
+		self.title = String::from(title);
+	}
+
 	pub fn get_path(&self) -> &Path {
 		&self.path
 	}

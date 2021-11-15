@@ -280,6 +280,7 @@ impl Musicus {
 						('l', ViewState::Playlists) => self.playlist_manager.move_right(),
 						('j', ViewState::Playlists) => self.playlist_manager.move_down(self.get_num_rows()),
 						('k', ViewState::Playlists) => self.playlist_manager.move_up(self.get_num_rows()),
+						('O', ViewState::Playlists) => self.playlist_manager.optimize_names(&mut self.song_buffer),
 						('j', ViewState::Debug) => self.debug_manager.scroll(1),
 						('k', ViewState::Debug) => self.debug_manager.scroll(-1),
 						('c', _) => self.toggle_pause(),
