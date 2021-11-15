@@ -24,12 +24,12 @@ pub struct RenderEntry {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum RenderColor {
-	BLACK,
-	WHITE,
-	BLUE,
-	CYAN,
-	YELLOW,
-	RED,
+	Black,
+	White,
+	Blue,
+	Cyan,
+	Yellow,
+	Red,
 }
 
 pub trait Renderable {
@@ -81,14 +81,14 @@ impl RenderEntry {
 }
 
 impl RenderColor {
-	pub fn to_curses_color(&self) -> i16 {
+	pub fn to_curses_color(self) -> i16 {
 		match self {
-			RenderColor::BLACK => COLOR_BLACK,
-			RenderColor::WHITE => COLOR_WHITE,
-			RenderColor::BLUE => COLOR_BLUE,
-			RenderColor::CYAN => COLOR_CYAN,
-			RenderColor::YELLOW => COLOR_YELLOW,
-			RenderColor::RED => COLOR_RED,
+			RenderColor::Black => COLOR_BLACK,
+			RenderColor::White => COLOR_WHITE,
+			RenderColor::Blue => COLOR_BLUE,
+			RenderColor::Cyan => COLOR_CYAN,
+			RenderColor::Yellow => COLOR_YELLOW,
+			RenderColor::Red => COLOR_RED,
 		}
 	}
 }

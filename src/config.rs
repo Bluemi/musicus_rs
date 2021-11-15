@@ -96,7 +96,7 @@ impl Cache {
 			view: ViewState::FileManager,
 			play_mode: PlayMode::Normal,
 			filemanager_cache: FileManagerCache {
-				current_directory: current_dir().unwrap_or(PathBuf::new()),
+				current_directory: current_dir().unwrap_or_default(),
 			},
 			playlist_manager_cache: PlaylistManagerCache {
 				view: PlaylistView::Overview,

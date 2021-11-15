@@ -26,11 +26,11 @@ impl DebugManager {
     }
 
     pub fn add_entry(&mut self, text: String) {
-        self.add_entry_color(text, RenderColor::WHITE, RenderColor::BLACK);
+        self.add_entry_color(text, RenderColor::White, RenderColor::Black);
     }
 
     pub fn add_error_entry(&mut self, text: String) {
-        self.add_entry_color(text, RenderColor::RED, RenderColor::BLACK);
+        self.add_entry_color(text, RenderColor::Red, RenderColor::Black);
     }
 
     pub fn add_entry_color(&mut self, text: String, foreground_color: RenderColor, background_color: RenderColor) {
@@ -50,7 +50,7 @@ impl DebugManager {
             render_panel.entries.push(render_entry);
         }
         if self.entries.is_empty() {
-            render_panel.entries.push(RenderEntry::new("<no entries>".to_string(), RenderColor::BLUE, RenderColor::BLACK));
+            render_panel.entries.push(RenderEntry::new("<no entries>".to_string(), RenderColor::Blue, RenderColor::Black));
         }
 		render_panel.scroll_position = self.scroll_position;
         render_object.panels.push(render_panel);

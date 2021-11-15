@@ -41,7 +41,7 @@ impl FileManager {
 	pub fn move_right(&mut self) {
 		let (cursor_position, _) = self.positions.get(&PathBuf::from(&self.current_path)).unwrap_or(&(0, 0));
 
-		if let Some(dir_entry) = get_dir_entries(&self.current_path).iter().nth(*cursor_position) {
+		if let Some(dir_entry) = get_dir_entries(&self.current_path).get(*cursor_position) {
 			self.current_path = dir_entry.path.clone();
 		}
 	}
@@ -92,11 +92,11 @@ impl Renderable for FileManager {
 			let dir_entries = get_dir_entries(ancestor);
 			for (entry_index, entry) in dir_entries.iter().enumerate() {
 				let mut foreground_color = if entry.is_file {
-					RenderColor::WHITE
+					RenderColor::White
 				} else {
-					RenderColor::BLUE
+					RenderColor::Blue
 				};
-				let mut background_color = RenderColor::BLACK;
+				let mut background_color = RenderColor::Black;
 				if entry_index == *cursor_position && ancestor_index != ancestors.len()-1 {
 					swap(&mut foreground_color, &mut background_color);
 				}

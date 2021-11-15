@@ -13,12 +13,10 @@ pub fn get_dir_entries(path: &Path) -> Vec<DirectoryEntry> {
 		return entries;
 	}
 	if let Ok(read_dir) = path.read_dir() {
-		for entry in read_dir {
-			if let Ok(entry) = entry {
-				let entry = DirectoryEntry::from(entry);
-				if !entry.filename.starts_with(".") {
-					entries.push(entry);
-				}
+		for entry in read_dir.flatten() {
+			let entry = DirectoryEntry::from(entry);
+			if !entry.filename.starts_with('.') {
+				entries.push(entry);
 			}
 		}
 	}
@@ -71,7 +69,7 @@ pub fn get_common_ends_of_strings<'a>(name: &'a str, begin: &'a str, end: &'a st
 		}
 	}
 
-	return (new_begin, new_end);
+	(new_begin, new_end)
 }
 
 pub fn get_common_ends<'a, I>(strings: I) -> Option<(&'a str, &'a str)>

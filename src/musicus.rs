@@ -66,14 +66,14 @@ impl Musicus {
 		let cache = if let Ok(cache) = Cache::load() {
 			cache
 		} else {
-			debug_manager.add_entry_color("Failed to load cache. Using default.".to_string(), RenderColor::RED, RenderColor::BLACK);
+			debug_manager.add_entry_color("Failed to load cache. Using default.".to_string(), RenderColor::Red, RenderColor::Black);
 			Cache::default()
 		};
 
 		let song_buffer = if let Ok(song_buffer) = SongBuffer::load() {
 			song_buffer
 		} else {
-			debug_manager.add_entry_color("Failed to load song buffer. Using empty.".to_string(), RenderColor::RED, RenderColor::BLACK);
+			debug_manager.add_entry_color("Failed to load song buffer. Using empty.".to_string(), RenderColor::Red, RenderColor::Black);
 			SongBuffer::new()
 		};
 
@@ -192,11 +192,11 @@ impl Musicus {
 					if let Some(playing_song) = &mut self.playing_song_info {
 						playing_song.play_position = play_position;
 
-						let duration_left = total_duration.checked_sub(play_position).unwrap_or(Duration::new(0, 0));
+						let duration_left = total_duration.checked_sub(play_position).unwrap_or_else(|| Duration::new(0, 0));
 
 						// check for load command
 						if !playing_song.loaded_next && duration_left < LOAD_OFFSET {
-							if let Some(song_id) = self.play_state.get_next_song(&mut self.playlist_manager) {
+							if let Some(song_id) = self.play_state.get_next_song(&self.playlist_manager) {
 								let song = self.song_buffer.get(song_id).unwrap();
 								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Load(song.clone()))).unwrap();
 								self.debug_manager.add_entry(format!("loading \"{}\"", song.get_title()));
@@ -219,11 +219,11 @@ impl Musicus {
 							}
 						}
 					} else {
-						self.debug_manager.add_entry_color("Got playing update, but playing song info is not set.".to_string(), RenderColor::RED, RenderColor::BLACK);
+						self.debug_manager.add_entry_color("Got playing update, but playing song info is not set.".to_string(), RenderColor::Red, RenderColor::Black);
 					}
 				}
 				AudioInfo::FailedOpen(song, e) => {
-					self.debug_manager.add_entry_color(format!("Failed to open: {:?} {:?}\n", song.get_path(), e), RenderColor::RED, RenderColor::BLACK);
+					self.debug_manager.add_entry_color(format!("Failed to open: {:?} {:?}\n", song.get_path(), e), RenderColor::Red, RenderColor::Black);
 				}
 				AudioInfo::SongEnded(song) => {
 					self.debug_manager.add_entry(format!("song ended: \"{}\"\n", song.get_title()));
@@ -363,7 +363,7 @@ impl Musicus {
 					self.playlist_manager.get_shown_song_index().unwrap(),
 				);
 			} else {
-				self.debug_manager.add_entry_color(format!("Failed to start song id {}", song_id), RenderColor::RED, RenderColor::BLACK);
+				self.debug_manager.add_entry_color(format!("Failed to start song id {}", song_id), RenderColor::Red, RenderColor::Black);
 			}
 		}
 	}
@@ -410,7 +410,7 @@ impl Musicus {
 	}
 
 	fn render_play_state(&mut self) {
-		self.set_color(RenderColor::BLACK, RenderColor::CYAN);
+		self.set_color(RenderColor::Black, RenderColor::Cyan);
 		if let Some(current_song) = &self.playing_song_info {
 			self.window.mv(self.window.get_max_y() - 1, 0);
 			self.window.hline(' ', self.window.get_max_x());

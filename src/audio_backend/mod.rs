@@ -42,7 +42,7 @@ impl CurrentSongState {
 	}
 
 	fn set_real_play_duration(&mut self, duration: Duration) {
-		self.play_duration = duration.checked_sub(self.start_duration).unwrap_or(Duration::new(0, 0));
+		self.play_duration = duration.checked_sub(self.start_duration).unwrap_or_else(|| Duration::new(0, 0));
 	}
 }
 
@@ -182,12 +182,7 @@ impl AudioBackend {
 	}
 
 	pub fn run(&mut self, audio_backend_receiver: Receiver<AudioBackendCommand>) {
-		loop {
-			let command = match audio_backend_receiver.recv() {
-				Ok(command) => command,
-				Err(_) => break,
-			};
-
+		while let Ok(command) = audio_backend_receiver.recv() {
 			let mut commands = vec![command];
 			commands.extend(audio_backend_receiver.try_iter());
 			let commands = AudioBackendCommand::simplify(commands);
@@ -223,7 +218,7 @@ impl AudioBackend {
 				if let Some(current_song) = &mut self.current_song {
 					assert_eq!(current_song.song.get_path(), playing_update.song.get_path());
 					current_song.set_real_play_duration(playing_update.duration_played);
-					self.info_sender.send(AudioInfo::Playing(playing_update.song.clone(), current_song.get_real_play_duration(), current_song.total_duration)).unwrap();
+					self.info_sender.send(AudioInfo::Playing(playing_update.song, current_song.get_real_play_duration(), current_song.total_duration)).unwrap();
 				}
 			}
 			AudioUpdate::SongEnded(path) => {
@@ -249,7 +244,7 @@ impl AudioBackend {
 					(current_song.get_real_play_duration() + seek_command.duration).min(current_song.total_duration)
 				}
 				SeekDirection::Backward => {
-					current_song.get_real_play_duration().checked_sub(seek_command.duration).unwrap_or(Duration::new(0, 0))
+					current_song.get_real_play_duration().checked_sub(seek_command.duration).unwrap_or_else(|| Duration::new(0, 0))
 				}
 			};
 			current_song.play_duration = Duration::new(0, 0);
@@ -272,7 +267,7 @@ impl AudioBackend {
 			*sink = rodio::Sink::try_new(stream_handle).unwrap();
 		}
 		sink.set_volume(volume);
-		Self::queue(sink, update_sender, info_sender, &song, skip, audio_buffer);
+		Self::queue(sink, update_sender, info_sender, song, skip, audio_buffer);
 		sink.play();
 	}
 
@@ -299,7 +294,7 @@ impl AudioBackend {
 						song_buffer,
 						move || update_sender.send(
 							AudioBackendCommand::Update(AudioUpdate::SongStarts(
-								song_copy.clone(), total_duration, skip.unwrap_or(Duration::new(0, 0))
+								song_copy.clone(), total_duration, skip.unwrap_or_else(|| Duration::new(0, 0))
 							))
 						).unwrap(),
 					);

@@ -61,7 +61,7 @@ impl PlaylistManager {
 	pub fn get_shown_song(&self) -> Option<SongID> {
 		if let Some(shown_playlist) = self.get_shown_playlist() {
 			let cursor_position = self.scroll_cursor_positions.get(&shown_playlist.id).map_or(0, |(_s, c)| *c);
-			return shown_playlist.songs.get(cursor_position).map(|s| *s);
+			return shown_playlist.songs.get(cursor_position).copied();
 		}
 		None
 	}
@@ -83,7 +83,7 @@ impl PlaylistManager {
 	}
 
 	pub fn get_song(&self, playlist_index: usize, song_index: usize) -> Option<SongID> {
-		self.playlists.get(playlist_index)?.songs.get(song_index).map(|s| *s)
+		self.playlists.get(playlist_index)?.songs.get(song_index).copied()
 	}
 
 	pub fn move_left(&mut self) {
@@ -130,7 +130,7 @@ impl PlaylistManager {
 
 	pub fn set_cursor_position(&mut self, playlist_index: usize, cursor: usize, num_rows: usize) {
 		if let Some(playlist) = self.playlists.get(playlist_index) {
-			let cursor = cursor.min(playlist.songs.len().checked_sub(1).unwrap_or(0)) as i32;
+			let cursor = cursor.min(playlist.songs.len().saturating_sub(1)) as i32;
 			let scroll = self.scroll_cursor_positions.get(&playlist.id).map_or(0, |(s, _c)| *s) as i32;
 			let scroll = scroll.clamp(
 				cursor - num_rows as i32 + 1,
@@ -149,22 +149,22 @@ impl PlaylistManager {
 			let (foreground_color, background_color) = if play_state.is_playlist_played(index) {
 				if index == self.shown_playlist_index {
 					if matches!(self.view, PlaylistView::Overview) {
-						(RenderColor::YELLOW, RenderColor::BLUE)
+						(RenderColor::Yellow, RenderColor::Blue)
 					} else {
-						(RenderColor::YELLOW, RenderColor::WHITE)
+						(RenderColor::Yellow, RenderColor::White)
 					}
 				} else {
-					(RenderColor::YELLOW, RenderColor::BLACK)
+					(RenderColor::Yellow, RenderColor::Black)
 				}
 			} else {
 				if index == self.shown_playlist_index {
 					if matches!(self.view, PlaylistView::Overview) {
-						(RenderColor::WHITE, RenderColor::BLUE)
+						(RenderColor::White, RenderColor::Blue)
 					} else {
-						(RenderColor::BLACK, RenderColor::WHITE)
+						(RenderColor::Black, RenderColor::White)
 					}
 				} else {
-					(RenderColor::WHITE, RenderColor::BLACK)
+					(RenderColor::White, RenderColor::Black)
 				}
 			};
 
@@ -181,22 +181,22 @@ impl PlaylistManager {
 				let (foreground_color, background_color) = if play_state.is_song_played(self.shown_playlist_index, index) {
 					if index == cursor_position {
 						if matches!(self.view, PlaylistView::Playlist) {
-							(RenderColor::YELLOW, RenderColor::BLUE)
+							(RenderColor::Yellow, RenderColor::Blue)
 						} else {
-							(RenderColor::YELLOW, RenderColor::WHITE)
+							(RenderColor::Yellow, RenderColor::White)
 						}
 					} else {
-						(RenderColor::YELLOW, RenderColor::BLACK)
+						(RenderColor::Yellow, RenderColor::Black)
 					}
 				} else {
 					if index == cursor_position {
 						if matches!(self.view, PlaylistView::Playlist) {
-							(RenderColor::WHITE, RenderColor::BLUE)
+							(RenderColor::White, RenderColor::Blue)
 						} else {
-							(RenderColor::BLACK, RenderColor::WHITE)
+							(RenderColor::Black, RenderColor::White)
 						}
 					} else {
-						(RenderColor::WHITE, RenderColor::BLACK)
+						(RenderColor::White, RenderColor::Black)
 					}
 				};
 				let song = song_buffer.get(*song_id).unwrap();
@@ -206,7 +206,7 @@ impl PlaylistManager {
 					background_color
 				));
 				duration_panel.entries.push(RenderEntry::new(
-					song.get_total_duration().map_or("".to_string(), |d| format_duration(d)),
+					song.get_total_duration().map_or("".to_string(), format_duration),
 					foreground_color,
 					background_color,
 				));
@@ -255,9 +255,9 @@ impl PlaylistManager {
 		let mut errors = Vec::new();
 		if path.is_file() {
 			// TODO: extract method
-			match PlaylistManager::try_import_playlist_file(&path) {
+			match PlaylistManager::try_import_playlist_file(path) {
 				Ok(paths) => {
-					self.add_playlist_from_files(&paths, &path, song_buffer);
+					self.add_playlist_from_files(&paths, path, song_buffer);
 				}
 				Err(e) => errors.push(format!("error importing playlist file: {}", e))
 			}
@@ -275,26 +275,24 @@ impl PlaylistManager {
 		errors
 	}
 
-	fn add_playlist_from_files(&mut self, paths: &Vec<PathBuf>, path: &Path, song_buffer: &mut SongBuffer) -> PlaylistID {
+	fn add_playlist_from_files(&mut self, paths: &[PathBuf], path: &Path, song_buffer: &mut SongBuffer) -> PlaylistID {
 		let mut songs = Vec::new();
 		for path in paths {
 			let id = song_buffer.import(path, None);
 			songs.push(id);
 		}
-		self.add_playlist_with_songs(path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or("<no-name>".to_string()), songs)
+		self.add_playlist_with_songs(path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_else(|| "<no-name>".to_string()), songs)
 	}
 
 	fn get_next_playlist_id(&self) -> PlaylistID {
 		let mut playlist_id: PlaylistID = 0;
-		loop {
-			for playlist in &self.playlists {
-				if playlist.id == playlist_id {
-					playlist_id += 1;
-					break;
-				}
+		for playlist in &self.playlists {
+			if playlist.id == playlist_id {
+				playlist_id += 1;
+				break;
 			}
-			return playlist_id;
 		}
+		playlist_id
 	}
 
 	pub fn add_playlist_with_songs(&mut self, name: String, songs: Vec<SongID>) -> PlaylistID {
@@ -312,7 +310,7 @@ impl PlaylistManager {
 			// let mut per_directory: HashMap<Path, Vec<SongID>> = HashMap::new();
 			let mut per_directory = HashMap::new();
 			for song_id in &current_playlist.songs {
-				let song = song_buffer.get(*song_id).expect(&format!("song id {} not found in song_buffer", song_id));  // TODO fix expect
+				let song = song_buffer.get(*song_id).unwrap_or_else(|| panic!("song id {} not found in song_buffer", song_id));  // TODO fix expect
 				let parent = PathBuf::from(song.get_path().parent().unwrap()); // TODO fix unwrap
 				if !per_directory.contains_key(&parent) {
 					per_directory.insert(parent.clone(), Vec::<SongID>::new());
