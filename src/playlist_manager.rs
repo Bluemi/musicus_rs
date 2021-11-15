@@ -58,7 +58,7 @@ impl PlaylistManager {
 		self.playlists.get(self.shown_playlist_index)
 	}
 
-	pub fn get_shown_song(&mut self) -> Option<SongID> {
+	pub fn get_shown_song(&self) -> Option<SongID> {
 		if let Some(shown_playlist) = self.get_shown_playlist() {
 			let cursor_position = self.scroll_cursor_positions.get(&shown_playlist.id).map_or(0, |(_s, c)| *c);
 			return shown_playlist.songs.get(cursor_position).map(|s| *s);
@@ -66,7 +66,7 @@ impl PlaylistManager {
 		None
 	}
 
-	pub fn get_shown_song_index(&mut self) -> Option<usize> {
+	pub fn get_shown_song_index(&self) -> Option<usize> {
 		Some(self.scroll_cursor_positions.get(&self.get_shown_playlist()?.id).map(|(_s, c)| *c).unwrap_or(0))
 	}
 
