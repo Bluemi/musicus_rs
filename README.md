@@ -29,6 +29,7 @@ If you have a question or an idea, you are very welcome to express it in the
 - `L` fast forwards five seconds and `H` rewinds five seconds
 - `J` starts the next song
 - `s` toggles shuffle mode
+- `f` toggles follow mode (cursor follows current song in playlist)
 - `+`/`-` increases/decreases volume
 
 ### Views
@@ -65,6 +66,7 @@ you can import those by pressing `i`.
 #### Playlist View
 The Playlist View manages your playlists. With `h`, `j`, `k`, `l` you navigate in your
 playlists. If you want to play a song in a playlist, press `Enter`.
+Press `F` to move the cursor to the currently played song. Press `D` to remove the selected song from this playlist.
 
 #### Debug View
 The last view is the Debug View. Here you can see logs of musicus.

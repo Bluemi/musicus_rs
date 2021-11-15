@@ -49,6 +49,7 @@ pub struct Cache {
 	pub filemanager_cache: FileManagerCache,
 	pub playlist_manager_cache: PlaylistManagerCache,
 	pub volume: i32,
+	pub follow: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -103,6 +104,7 @@ impl Cache {
 				scroll_cursor_positions: HashMap::new(),
 			},
 			volume: 100,
+			follow: true,
 		}
 	}
 }
