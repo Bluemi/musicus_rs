@@ -285,14 +285,12 @@ impl PlaylistManager {
 	}
 
 	fn get_next_playlist_id(&self) -> PlaylistID {
-		let mut playlist_id: PlaylistID = 0;
-		for playlist in &self.playlists {
-			if playlist.id == playlist_id {
-				playlist_id += 1;
-				break;
+		for playlist_id in 0.. {
+			if self.playlists.iter().find(|pl| pl.id == playlist_id).is_none() {
+				return playlist_id;
 			}
 		}
-		playlist_id
+		unreachable!()
 	}
 
 	pub fn add_playlist_with_songs(&mut self, name: String, songs: Vec<SongID>) -> PlaylistID {
