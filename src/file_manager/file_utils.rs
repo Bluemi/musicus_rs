@@ -51,28 +51,26 @@ impl From<DirEntry> for DirectoryEntry {
 
 pub fn get_common_ends_of_strings<'a>(name: &'a str, begin: &'a str, end: &'a str) -> (&'a str, &'a str) {
 	// search for start
-	let mut slice_index = name.len().min(begin.len());
-	let mut new_begin = "";
-	while slice_index > 0 {
-		if &name[0..slice_index] == &begin[0..slice_index] {
-			new_begin = &name[0..slice_index];
+	let mut new_begin = begin;
+	for (name_char, begin_char) in name.char_indices().zip(begin.char_indices()) {
+		if name_char.1 != begin_char.1 {
+			new_begin = &name[0..(name_char.0)];
 			break;
 		}
-		slice_index -= 1;
 	}
 
 	// search for end
-	let mut slice_index = name.len().min(end.len()); // equal_end_index defines the number of chars at the end of a string
-	let mut new_end = "";
-	while slice_index > 0 {
-		let name_index = name.len() - slice_index;
-		let end_index = end.len() - slice_index;
-		if &name[name_index..] == &end[end_index..] {
-			new_end = &name[name_index..];
+	let mut new_end = end;
+	let mut last_end_index = name.len();
+	for (name_char, end_char) in name.char_indices().rev().zip(end.char_indices().rev()) {
+		if name_char.1 != end_char.1 {
+			new_end = &name[last_end_index..];
 			break;
+		} else {
+			last_end_index = name_char.0;
 		}
-		slice_index -= 1;
 	}
+
 	return (new_begin, new_end);
 }
 
@@ -128,7 +126,6 @@ mod tests {
 		let (begin, end) = get_common_ends(vec).unwrap();
 		assert_eq!(begin, "start");
 		assert_eq!(end, "end");
-
 	}
 
 	#[test]
@@ -158,5 +155,17 @@ mod tests {
 		let (begin, end) = get_common_ends(vec).unwrap();
 		assert_eq!(begin, "");
 		assert_eq!(end, "END");
+	}
+
+	#[test]
+	fn test_common_ends_utf8() {
+		let vec = vec![
+			"èŷß",
+			"èôß"
+		];
+
+		let (begin, end) = get_common_ends(vec).unwrap();
+		assert_eq!(begin, "è");
+		assert_eq!(end, "ß");
 	}
 }
