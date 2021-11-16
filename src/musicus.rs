@@ -22,7 +22,6 @@ const ESC_CHAR: char = 27 as char;
 const ENTER_CHAR: char = 10 as char;
 const CURSES_TIMEOUT: i32 = 200;
 const QUEUE_OFFSET: Duration = Duration::from_secs(2);
-const LOAD_OFFSET: Duration = Duration::from_secs(10);
 
 pub struct Musicus {
     command_sender: Sender<AudioBackendCommand>,
@@ -195,7 +194,7 @@ impl Musicus {
 						let duration_left = total_duration.checked_sub(play_position).unwrap_or_else(|| Duration::new(0, 0));
 
 						// check for load command
-						if !playing_song.loaded_next && duration_left < LOAD_OFFSET {
+						if !playing_song.loaded_next {
 							if let Some(song_id) = self.play_state.get_next_song(&self.playlist_manager) {
 								let song = self.song_buffer.get(song_id).unwrap();
 								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Load(song.clone()))).unwrap();
