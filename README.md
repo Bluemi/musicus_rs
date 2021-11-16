@@ -67,6 +67,7 @@ you can import those by pressing `i`.
 The Playlist View manages your playlists. With `h`, `j`, `k`, `l` you navigate in your
 playlists. If you want to play a song in a playlist, press `Enter`.
 Press `F` to move the cursor to the currently played song. Press `D` to remove the selected song from this playlist.
+`O` tries to optimize the song titles by removing parts that occur in every title of a directory.
 
 #### Debug View
 The last view is the Debug View. Here you can see logs of musicus.
