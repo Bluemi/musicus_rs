@@ -118,12 +118,41 @@ impl PlayState {
 		};
 		self.define_next_song(playlist_manager).map(|_| ())
 	}
+
+	pub fn apply_playlist_delete(&mut self, arg_playlist_id: usize, arg_song_index: usize) {
+		if let Some(current_song) = &mut self.current_song {
+			current_song.apply_playlist_delete(arg_playlist_id, arg_song_index);
+		}
+		if let Some(next_song) = &mut self.next_song {
+			next_song.apply_playlist_delete(arg_playlist_id, arg_song_index);
+		}
+		for song in self.history.iter_mut() {
+			song.apply_playlist_delete(arg_playlist_id, arg_song_index);
+		}
+	}
 }
 
 #[derive(Copy, Clone)]
 pub enum PlayPosition {
 	File(SongID), // A Song from the file browser was played
 	Playlist(SongID, usize, usize, bool), // (song_id, playlist_id, song_index in playlist, deleted)
+}
+
+impl PlayPosition {
+	/**
+	 * If a song of a playlist is deleted, we have to adjust song_index of songs later in the playlist and the state of the deleted song
+	 */
+	fn apply_playlist_delete(&mut self, arg_playlist_id: usize, arg_song_index: usize) {
+		if let PlayPosition::Playlist(_, playlist_id, song_index, deleted) = self {
+			if *playlist_id == arg_playlist_id {
+				if *song_index == arg_song_index { // this play position is deleted
+					*deleted = true;
+				} else if *song_index > arg_song_index { // a song before this song was deleted
+					*song_index -= 1; // we decrease it
+				}
+			}
+		}
+	}
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]

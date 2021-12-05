@@ -300,7 +300,14 @@ impl Musicus {
 						('F', ViewState::Playlists) => self.follow_playlist(),
 						('+', _) => self.change_volume(5),
 						('-', _) => self.change_volume(-5),
-						('D', ViewState::Playlists) => self.playlist_manager.delete_current_song(),
+						('D', ViewState::Playlists) => {
+							if self.playlist_manager.get_shown_playlist().is_some() {
+								if let Some(shown_song_index) = self.playlist_manager.get_shown_song_index() {
+									self.play_state.apply_playlist_delete(self.playlist_manager.shown_playlist_index, shown_song_index);
+								}
+							}
+							self.playlist_manager.delete_current_song();
+						},
 						('i', ViewState::FileManager) => {
 							let errors = self.playlist_manager.import_playlists(&self.file_manager.current_path, &mut self.song_buffer);
 							for error in errors {
