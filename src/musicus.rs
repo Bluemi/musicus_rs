@@ -294,7 +294,10 @@ impl Musicus {
 							match self.play_state.toggle_mode(&self.playlist_manager) {
 								Err(msg) => self.debug_manager.add_error_entry(format!("Failed to define next song, when toggling mode: {}", msg)),
 								_ => {}
-							}
+							};
+							if let Some(playing_song) = &mut self.playing_song_info {
+								playing_song.loaded_next = false;
+							};
 						},
 						('f', _) => self.follow = !self.follow,
 						('F', ViewState::Playlists) => self.follow_playlist(),
