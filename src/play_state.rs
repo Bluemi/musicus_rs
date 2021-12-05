@@ -1,27 +1,29 @@
+use rand::random;
 use serde::{Serialize, Deserialize};
 use crate::playlist_manager::PlaylistManager;
-use crate::random::RandomGenerator;
 use crate::song::SongID;
 
 pub struct PlayState {
 	pub playing: bool,
-	pub play_position: PlayPosition,
 	pub mode: PlayMode,
-	random_generator: RandomGenerator,
+	pub history: Vec<PlayPosition>,
+	pub current_song: Option<PlayPosition>,
+	pub next_song: Option<PlayPosition>,
 }
 
 impl PlayState {
 	pub fn new(mode: PlayMode) -> PlayState {
 		PlayState {
 			playing: false,
-			play_position: PlayPosition::Empty,
 			mode,
-			random_generator: RandomGenerator::new(),
+			history: Vec::new(),
+			current_song: None,
+			next_song: None,
 		}
 	}
 
 	pub fn is_playlist_played(&self, playlist_index: usize) -> bool {
-		if let PlayPosition::Playlist(playlist, _) = self.play_position {
+		if let Some(PlayPosition::Playlist(_, playlist, ..)) = self.get_current_play_position() {
 			playlist_index == playlist
 		} else {
 			false
@@ -29,53 +31,99 @@ impl PlayState {
 	}
 
 	pub fn is_song_played(&self, playlist_index: usize, song_index: usize) -> bool {
-		if let PlayPosition::Playlist(playlist, song) = self.play_position {
+		if let Some(PlayPosition::Playlist(_, playlist, song, ..)) = self.get_current_play_position() {
 			playlist_index == playlist && song_index == song
 		} else {
 			false
 		}
 	}
 
-	pub fn get_next_song(&mut self, playlist_manager: &PlaylistManager) -> Option<SongID> {
-		match &mut self.play_position {
-			PlayPosition::Playlist(playlist_index, song_index) => {
-				let next_song_index = match self.mode {
+	pub fn play_song(&mut self, play_position: PlayPosition, playlist_manager: &PlaylistManager) -> Result<(), String>{
+		self.history.push(play_position);
+		self.current_song = Some(play_position);
+		self.define_next_song(playlist_manager).map(|_| ())
+	}
+
+	/**
+	 * Gets the current play position
+	 */
+	pub fn get_current_play_position(&self) -> Option<PlayPosition> {
+		self.current_song
+	}
+
+	/**
+	 * Peeks the next song (and defines it, if not already defined).
+	 */
+	pub fn peek_next_song(&mut self) -> Option<PlayPosition> {
+		self.next_song
+	}
+
+	/**
+	 * Changes the current play position to the next song.
+	 */
+	pub fn play_next_song(&mut self, playlist_manager: &PlaylistManager) -> Result<(), String>{
+		if let Some(next_song) = self.next_song {
+			self.play_song(next_song, playlist_manager)
+		} else {
+			Err("Cannot play next song: no next song".to_string())
+		}
+	}
+
+	/**
+	 * If necessary generates the next play position and writes it into the history.
+	 * It is impossible to generate next songs for PlayState::Empty, PlayState::File or end of playlist.
+	 */
+	pub fn define_next_song(&mut self, playlist_manager: &PlaylistManager) -> Result<PlayPosition, String> {
+		match PlayState::generate_next_song(&self.mode, &self.current_song.ok_or("no current song".to_string())?, playlist_manager) {
+			Ok((song_id, song_index, playlist_index)) => {
+				let next_play_position = PlayPosition::Playlist(song_id, playlist_index, song_index, false);
+				self.set_next_song(next_play_position);
+				Ok(next_play_position)
+			},
+			Err(msg) => {
+				Err(msg)
+			},
+		}
+	}
+
+	fn set_next_song(&mut self, play_position: PlayPosition) {
+		self.next_song = Some(play_position);
+	}
+
+	/**
+	 * Generates a possible next song that should be played. Does not write into history.
+	 */
+	fn generate_next_song(mode: &PlayMode, play_position: &PlayPosition, playlist_manager: &PlaylistManager) -> Result<(SongID, usize, usize), String> {
+		match play_position {
+			PlayPosition::Playlist(_song_id, playlist_index, song_index, ..) => {
+				let next_song_index = match mode {
 					PlayMode::Normal => *song_index + 1,
 					PlayMode::Shuffle => {
 						let played_playlist = playlist_manager.playlists.get(*playlist_index).unwrap();
-						self.random_generator.get_offset_unchecked(1) % played_playlist.songs.len()
+						random::<usize>() % played_playlist.songs.len()
 					},
 				};
-				playlist_manager.get_song(*playlist_index, next_song_index)
+				let song_id = playlist_manager.get_song(*playlist_index, next_song_index)
+					.ok_or(format!("get song failed with playlist_index={} song_index={}", *playlist_index, next_song_index))?;
+				Ok((song_id, next_song_index, *playlist_index))
 			}
-			_ => None,
+			PlayPosition::File(_) => Err("file".to_string()),
 		}
 	}
 
-	pub fn next_song(&mut self, playlist_manager: &PlaylistManager) {
-		if let PlayPosition::Playlist(playlist_index, song_index) = &mut self.play_position {
-			match self.mode {
-				PlayMode::Normal => *song_index += 1,
-				PlayMode::Shuffle => {
-					let played_playlist = playlist_manager.playlists.get(*playlist_index).unwrap();
-					*song_index = self.random_generator.next() % played_playlist.songs.len();
-				},
-			};
-		}
-	}
-
-	pub fn toggle_mode(&mut self) {
+	pub fn toggle_mode(&mut self, playlist_manager: &PlaylistManager) -> Result<(), String>{
 		self.mode = match self.mode {
 			PlayMode::Normal => PlayMode::Shuffle,
 			PlayMode::Shuffle => PlayMode::Normal,
-		}
+		};
+		self.define_next_song(playlist_manager).map(|_| ())
 	}
 }
 
+#[derive(Copy, Clone)]
 pub enum PlayPosition {
-	Empty,
-	File(SongID),
-	Playlist(usize, usize), // playlist index, song index
+	File(SongID), // A Song from the file browser was played
+	Playlist(SongID, usize, usize, bool), // (song_id, playlist_id, song_index in playlist, deleted)
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]

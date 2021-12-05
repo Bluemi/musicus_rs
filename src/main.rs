@@ -11,7 +11,6 @@ mod playlist_manager;
 mod config;
 mod play_state;
 mod debug_manager;
-mod random;
 mod song;
 mod string_helpers;
 

@@ -160,20 +160,22 @@ impl Musicus {
 	}
 
 	fn start_next_song(&mut self) {
-		if let Some(song_id) = self.play_state.get_next_song(&self.playlist_manager) {
+		if let Some(PlayPosition::Playlist(song_id, ..)) = self.play_state.peek_next_song() {
 			let song = self.song_buffer.get(song_id).unwrap();
 			self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Play(song.clone()))).unwrap();
-			self.play_state.next_song(&self.playlist_manager);
+			if let Err(msg) = self.play_state.play_next_song(&self.playlist_manager) {
+				self.debug_manager.add_error_entry(format!("failed to start next song: {}", msg));
+			}
 			if self.follow {
 				self.follow_playlist();
 			}
 		} else {
-			self.debug_manager.add_entry("no next song to play".to_string());
+			self.debug_manager.add_error_entry("failed to start next song: {}".to_string());
 		}
 	}
 
 	fn follow_playlist(&mut self) {
-		if let PlayPosition::Playlist(playlist_index, song_index) = &mut self.play_state.play_position {
+		if let Some(PlayPosition::Playlist(_, playlist_index, song_index, false)) = &mut self.play_state.get_current_play_position() { // only match songs, that are not deleted
 			self.playlist_manager.set_cursor_position(*playlist_index, *song_index, self.get_num_rows());
 		}
 	}
@@ -194,27 +196,29 @@ impl Musicus {
 						let duration_left = total_duration.checked_sub(play_position).unwrap_or_else(|| Duration::new(0, 0));
 
 						// check for load command
-						if !playing_song.loaded_next {
-							if let Some(song_id) = self.play_state.get_next_song(&self.playlist_manager) {
+						if !playing_song.loaded_next && matches!(self.play_state.get_current_play_position(), Some(PlayPosition::Playlist(..))) {
+							if let Some(PlayPosition::Playlist(song_id, ..)) = self.play_state.peek_next_song() {
 								let song = self.song_buffer.get(song_id).unwrap();
 								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Load(song.clone()))).unwrap();
 								self.debug_manager.add_entry(format!("loading \"{}\"", song.get_title()));
 								playing_song.loaded_next = true;
 							} else {
-								self.debug_manager.add_entry("no next song to load".to_string());
+								self.debug_manager.add_error_entry("failed to peek next song".to_string());
 							}
 						}
 
 						// check for queue command
 						if !playing_song.queued_next && duration_left < QUEUE_OFFSET {
-							if let Some(song_id) = self.play_state.get_next_song(&self.playlist_manager) {
+							if let Some(PlayPosition::Playlist(song_id, ..)) = self.play_state.peek_next_song() {
 								let song = self.song_buffer.get(song_id).unwrap();
 								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))).unwrap();
-								self.play_state.next_song(&self.playlist_manager);
+								if let Err(msg) = self.play_state.play_next_song(&self.playlist_manager) {
+									self.debug_manager.add_error_entry(format!("failed to start next song: {}", msg));
+								}
 								self.debug_manager.add_entry(format!("queueing \"{}\"", song.get_title()));
 								playing_song.queued_next = true;
 							} else {
-								self.debug_manager.add_entry("no next song to queue".to_string());
+								self.debug_manager.add_error_entry("no next song to queue".to_string());
 							}
 						}
 					} else {
@@ -286,7 +290,12 @@ impl Musicus {
 						('1', _) => self.view_state = ViewState::FileManager,
 						('2', _) => self.view_state = ViewState::Playlists,
 						('3', _) => self.view_state = ViewState::Debug,
-						('s', _) => self.play_state.toggle_mode(),
+						('s', _) => {
+							match self.play_state.toggle_mode(&self.playlist_manager) {
+								Err(msg) => self.debug_manager.add_error_entry(format!("Failed to define next song, when toggling mode: {}", msg)),
+								_ => {}
+							}
+						},
 						('f', _) => self.follow = !self.follow,
 						('F', ViewState::Playlists) => self.follow_playlist(),
 						('+', _) => self.change_volume(5),
@@ -345,7 +354,7 @@ impl Musicus {
 		let song_id = self.song_buffer.import(&self.file_manager.current_path, None);
 		let song = self.song_buffer.get(song_id).unwrap();
 		Self::play(&self.command_sender, &mut self.play_state, song.clone());
-		self.play_state.play_position = PlayPosition::File(song_id);
+		let _ = self.play_state.play_song(PlayPosition::File(song_id), &self.playlist_manager);
 	}
 
 	fn play(command_sender: &Sender<AudioBackendCommand>, play_state: &mut PlayState, song: Song) {
@@ -357,10 +366,13 @@ impl Musicus {
         if let Some(song_id) = self.playlist_manager.get_shown_song() {
 			if let Some(song) = self.song_buffer.get(song_id) {
 				Self::play(&self.command_sender, &mut self.play_state, song.clone());
-				self.play_state.play_position = PlayPosition::Playlist(
+				let new_play_position = PlayPosition::Playlist(
+					song_id,
 					self.playlist_manager.shown_playlist_index,
 					self.playlist_manager.get_shown_song_index().unwrap(),
+					false,
 				);
+				let _ = self.play_state.play_song(new_play_position, &self.playlist_manager);
 			} else {
 				self.debug_manager.add_entry_color(format!("Failed to start song id {}", song_id), RenderColor::Red, RenderColor::Black);
 			}
