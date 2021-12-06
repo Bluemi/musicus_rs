@@ -1,4 +1,4 @@
-use rand::random;
+use rand::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::playlist_manager::PlaylistManager;
 use crate::song::SongID;
@@ -9,6 +9,7 @@ pub struct PlayState {
 	pub history: Vec<PlayPosition>,
 	pub current_song: Option<PlayPosition>,
 	pub next_song: Option<PlayPosition>,
+	random_generator: ThreadRng,
 }
 
 impl PlayState {
@@ -19,6 +20,7 @@ impl PlayState {
 			history: Vec::new(),
 			current_song: None,
 			next_song: None,
+			random_generator: rand::thread_rng(),
 		}
 	}
 
@@ -74,7 +76,7 @@ impl PlayState {
 	 * It is impossible to generate next songs for PlayState::Empty, PlayState::File or end of playlist.
 	 */
 	pub fn define_next_song(&mut self, playlist_manager: &PlaylistManager) -> Result<PlayPosition, String> {
-		match PlayState::generate_next_song(&self.mode, &self.current_song.ok_or("no current song".to_string())?, playlist_manager) {
+		match PlayState::generate_next_song(&self.mode, &self.current_song.ok_or("no current song".to_string())?, playlist_manager, &mut self.random_generator) {
 			Ok((song_id, song_index, playlist_index)) => {
 				let next_play_position = PlayPosition::Playlist(song_id, playlist_index, song_index, false);
 				self.set_next_song(next_play_position);
@@ -93,14 +95,14 @@ impl PlayState {
 	/**
 	 * Generates a possible next song that should be played. Does not write into history.
 	 */
-	fn generate_next_song(mode: &PlayMode, play_position: &PlayPosition, playlist_manager: &PlaylistManager) -> Result<(SongID, usize, usize), String> {
+	fn generate_next_song(mode: &PlayMode, play_position: &PlayPosition, playlist_manager: &PlaylistManager, random_generator: &mut ThreadRng) -> Result<(SongID, usize, usize), String> {
 		match play_position {
 			PlayPosition::Playlist(_song_id, playlist_index, song_index, ..) => {
 				let next_song_index = match mode {
 					PlayMode::Normal => *song_index + 1,
 					PlayMode::Shuffle => {
 						let played_playlist = playlist_manager.playlists.get(*playlist_index).unwrap();
-						random::<usize>() % played_playlist.songs.len()
+						random_generator.gen::<usize>() % played_playlist.songs.len()
 					},
 				};
 				let song_id = playlist_manager.get_song(*playlist_index, next_song_index)
