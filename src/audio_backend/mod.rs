@@ -172,7 +172,6 @@ impl AudioBackendCommand {
 impl AudioBackend {
 	pub fn new(info_sender: Sender<AudioInfo>, audio_backend_sender: Sender<AudioBackendCommand>, volume: f32) -> AudioBackend {
 		let pulse_device = cpal::default_host().output_devices().unwrap().find(|d| d.name().unwrap().contains("pulse")).unwrap();
-		//
 		let (stream, stream_handle) = rodio::OutputStream::try_from_device(&pulse_device)
 			.unwrap_or_else(|_| rodio::OutputStream::try_default().unwrap());
 		AudioBackend {
