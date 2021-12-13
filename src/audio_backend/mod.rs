@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crossbeam::{Receiver, Sender};
-use rodio::{Sink, Source};
+use rodio::{cpal, DeviceTrait, Sink, Source};
+use rodio::cpal::traits::HostTrait;
 
 use done_access::DoneAccess;
 use periodic_access::PeriodicAccess;
@@ -170,7 +171,10 @@ impl AudioBackendCommand {
 
 impl AudioBackend {
 	pub fn new(info_sender: Sender<AudioInfo>, audio_backend_sender: Sender<AudioBackendCommand>, volume: f32) -> AudioBackend {
-		let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+		let pulse_device = cpal::default_host().output_devices().unwrap().find(|d| d.name().unwrap().contains("pulse")).unwrap();
+		//
+		let (stream, stream_handle) = rodio::OutputStream::try_from_device(&pulse_device)
+			.unwrap_or_else(|_| rodio::OutputStream::try_default().unwrap());
 		AudioBackend {
 			sink: rodio::Sink::try_new(&stream_handle).unwrap(),
 			_stream: stream,
