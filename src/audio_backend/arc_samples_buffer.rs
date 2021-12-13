@@ -54,5 +54,6 @@ pub struct Sound {
     pub sample_rate: u32,
     pub duration: Duration,
     pub data: Vec<f32>,
+    pub counter: usize,
 }
 

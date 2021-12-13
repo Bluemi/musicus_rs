@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crossbeam::{Receiver, Sender};
@@ -96,6 +97,7 @@ pub enum AudioInfo {
 	FailedOpen(Song, OpenError),
 	SongEnded(Song),
 	SongDuration(SongID, Duration),
+	GarbageCollected(PathBuf),
 }
 
 #[derive(Debug)]
@@ -197,8 +199,8 @@ impl AudioBackend {
 
 	fn handle_command(&mut self, command: AudioCommand) {
 		match command {
-			AudioCommand::Play(song) => Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &song, None, &self.audio_buffer, self.volume),
-			AudioCommand::Queue(song) => Self::queue(&mut self.sink, &self.update_sender, &self.info_sender, &song, None, &self.audio_buffer),
+			AudioCommand::Play(song) => Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &song, None, &mut self.audio_buffer, self.volume),
+			AudioCommand::Queue(song) => Self::queue(&mut self.sink, &self.update_sender, &self.info_sender, &song, None, &mut self.audio_buffer),
 			AudioCommand::Load(song) => self.audio_buffer.load(song.get_path().to_path_buf()),
 			AudioCommand::Pause => self.pause(),
 			AudioCommand::Unpause => self.unpause(),
@@ -233,6 +235,9 @@ impl AudioBackend {
 					play_duration: Duration::new(0, 0),
 					start_duration,
 				});
+				if let Some(path_buf) = self.audio_buffer.check_garbage_collect() {
+					self.info_sender.send(AudioInfo::GarbageCollected(path_buf)).unwrap();
+				}
 			}
 		}
 	}
@@ -248,7 +253,7 @@ impl AudioBackend {
 				}
 			};
 			current_song.play_duration = Duration::new(0, 0);
-			Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &current_song.song, Some(current_song.get_real_play_duration()), &self.audio_buffer, self.volume);
+			Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &current_song.song, Some(current_song.get_real_play_duration()), &mut self.audio_buffer, self.volume);
 		}
 	}
 
@@ -259,7 +264,7 @@ impl AudioBackend {
 		info_sender: &Sender<AudioInfo>,
 		song: &Song,
 		skip: Option<Duration>,
-		audio_buffer: &AudioBuffer,
+		audio_buffer: &mut AudioBuffer,
         volume: f32,
 	) {
 		if !sink.empty() {
@@ -277,7 +282,7 @@ impl AudioBackend {
 		info_sender: &Sender<AudioInfo>,
 		song: &Song,
 		skip: Option<Duration>,
-		audio_buffer: &AudioBuffer,
+		audio_buffer: &mut AudioBuffer,
 	) {
 		match audio_buffer.get(song.get_path()) {
 			Ok(song_buffer) => {
