@@ -232,15 +232,16 @@ impl Musicus {
 					self.debug_manager.add_entry(format!("song ended: \"{}\"\n", song.get_title()));
 				}
 				AudioInfo::SongStarts(song, total_duration, start_duration) => {
+					let new_song_starts = start_duration == Duration::new(0, 0); // whether a new song starts (otherwise the song was forwarded or rewound)
 					self.playing_song_info = Some(SongInfo {
 						title: song.get_title().to_string(),
 						play_position: start_duration,
 						total_duration,
-						queued_next: false,
-						loaded_next: false
+						queued_next: !new_song_starts,
+						loaded_next: !new_song_starts,
 					});
 					has_to_render = true;
-					if start_duration == Duration::new(0, 0) {
+					if new_song_starts {
 						self.debug_manager.add_entry(format!("start song \"{}\"", song.get_title()));
 						should_follow = true;
 					}
