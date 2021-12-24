@@ -18,7 +18,6 @@ use crate::song::song_buffer::SongBuffer;
 use crate::string_helpers::{cut_str_left, limit_str_right};
 
 const FILE_BROWSER_OFFSET: i32 = 5;
-const ESC_CHAR: char = 27 as char;
 const ENTER_CHAR: char = 10 as char;
 const CURSES_TIMEOUT: i32 = 200;
 const QUEUE_OFFSET: Duration = Duration::from_secs(2);
@@ -271,7 +270,7 @@ impl Musicus {
 				Input::Character(c) => {
 					got_valid_input = true;
 					match (c, self.view_state) {
-						('q' | ESC_CHAR, _) => *running = false,
+						('q', _) => *running = false,
 						('L', _) => self.seek(SeekDirection::Forward),
 						('H', _) => self.seek(SeekDirection::Backward),
 						('J', _) => self.start_next_song(),
@@ -328,8 +327,10 @@ impl Musicus {
 							self.debug_manager.add_entry(format!("got unknown char: {} ({})\n", c, c as i32));
 						},
 					}
+				},
+				a => {
+					self.debug_manager.add_entry(format!("{:?}", a));
 				}
-				_ => {},
 			}
 		}
 		got_valid_input
