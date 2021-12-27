@@ -1,7 +1,8 @@
 use std::time::Duration;
 use crossbeam::{Receiver, Sender, TryRecvError};
 use rodio::Source;
-use crate::audio_backend::AudioBackendCommand;
+use crate::audio_backend::{AudioBackendCommand, AudioUpdate, PlayingUpdate};
+use crate::song::Song;
 
 const CHUNK_SIZE: usize = 1024;
 const SOFT_FADEOUT_DECAY: f32 = 0.01;
@@ -12,14 +13,8 @@ pub struct SamplesChunk {
     pub sample_rate: u32,
     pub duration: Duration,
     pub data: Box<[f32; CHUNK_SIZE]>,
-    pub first_chunk: bool,
+    pub song: Song,
     pub last_chunk: bool,
-}
-
-struct PeriodicAccess {
-    update_frequency: u32,
-    samples_until_update: u32,
-    duration_played: Duration,
 }
 
 pub struct ReceiverSource {
@@ -29,6 +24,12 @@ pub struct ReceiverSource {
     counter: usize, // points to the current position in current_chunk
     last_value: f32,
     periodic_access: PeriodicAccess,
+}
+
+struct PeriodicAccess {
+    update_frequency: u32,
+    samples_until_update: u32,
+    duration_played: Duration,
 }
 
 impl ReceiverSource {
@@ -50,6 +51,19 @@ impl ReceiverSource {
     fn load_next_chunk(&mut self) {
         match self.samples_receiver.try_recv() {
             Ok(chunk) => {
+                // check for new song
+                if self.current_chunk.as_ref().map(|c| c.song.get_id() != chunk.song.get_id()).unwrap_or(true) {
+                    // TODO send SongStarts update
+                    /*
+                    self.update_sender.send(
+                        AudioBackendCommand::Update(AudioUpdate::SongStarts(
+                            chunk.song.clone(), skip.unwrap_or_else(|| Duration::new(0, 0))
+                        ))
+                    )
+					 */
+                }
+
+                //
                 let update_frequency = (PERIODIC_ACCESS_UPDATE_PERIOD.as_secs_f64() * chunk.sample_rate as f64 * chunk.channels as f64) as u32;
 
                 self.current_chunk = Some(chunk);
@@ -61,8 +75,31 @@ impl ReceiverSource {
                     duration_played: Duration::new(0, 0),
                 }
             }
-            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Empty) => {
+                self.current_chunk = None;
+                self.counter = 0;
+                self.periodic_access = PeriodicAccess {
+                    update_frequency: 0,
+                    samples_until_update: 0,
+                    duration_played: Duration::new(0, 0),
+                }
+            }
             _ => todo!()
+        }
+    }
+
+    fn tick_periodic_access(&mut self) {
+        if let Some(chunk) = &self.current_chunk {
+            if self.periodic_access.tick() {
+                self.update_sender.send(
+                    AudioBackendCommand::Update(AudioUpdate::Playing(
+                        PlayingUpdate {
+                            song: chunk.song.clone(),
+                            duration_played: self.periodic_access.duration_played,
+                        }
+                    )
+                    ));
+            }
         }
     }
 }
@@ -82,10 +119,13 @@ impl Iterator for ReceiverSource {
             }
             None => self.load_next_chunk(),
         }
+
         // use value from current chunk or do soft fadeout
         let value = match &self.current_chunk {
             Some(chunk) => {
-                chunk.data[self.counter]
+                let val = chunk.data[self.counter];
+                self.counter += 1;
+                val
             }
             None => {
                 // soft fade out
@@ -96,9 +136,10 @@ impl Iterator for ReceiverSource {
                 }
             }
         };
-        self.last_value = value;
 
-        self.counter += 1;
+        self.tick_periodic_access();
+
+        self.last_value = value;
         Some(value)
     }
 }
@@ -118,5 +159,17 @@ impl Source for ReceiverSource {
 
     fn total_duration(&self) -> Option<Duration> {
         None // this source plays for ever
+    }
+}
+
+impl PeriodicAccess {
+    fn tick(&mut self) -> bool {
+        self.samples_until_update -= 1;
+        let update = self.samples_until_update == 0;
+        if update {
+            self.duration_played += PERIODIC_ACCESS_UPDATE_PERIOD;
+            self.samples_until_update = self.update_frequency;
+        }
+        update
     }
 }
