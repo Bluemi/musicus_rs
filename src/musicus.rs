@@ -327,10 +327,8 @@ impl Musicus {
 							self.debug_manager.add_entry(format!("got unknown char: {} ({})\n", c, c as i32));
 						},
 					}
-				},
-				a => {
-					self.debug_manager.add_entry(format!("{:?}", a));
 				}
+				_ => {},
 			}
 		}
 		got_valid_input
