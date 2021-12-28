@@ -227,9 +227,6 @@ impl Musicus {
 				AudioInfo::FailedOpen(song, e) => {
 					self.debug_manager.add_entry_color(format!("Failed to open: {:?} {:?}\n", song.get_path(), e), RenderColor::Red, RenderColor::Black);
 				}
-				AudioInfo::SongEnded(song) => {
-					self.debug_manager.add_entry(format!("song ended: \"{}\"\n", song.get_title()));
-				}
 				AudioInfo::SongStarts(song, total_duration, start_duration) => {
 					let new_song_starts = start_duration == Duration::new(0, 0); // whether a new song starts (otherwise the song was forwarded or rewound)
 					self.playing_song_info = Some(SongInfo {

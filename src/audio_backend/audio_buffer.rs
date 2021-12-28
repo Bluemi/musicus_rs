@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{PathBuf, Path};
 use rodio::{Decoder, Source};
 use std::sync::Arc;
@@ -5,18 +6,18 @@ use std::fs::File;
 use std::io::BufReader;
 use crossbeam::{Sender, Receiver, unbounded};
 use std::thread;
-use dashmap::DashMap;
 use crate::audio_backend::arc_samples_buffer::{Sound, ArcSamplesBuffer};
 use std::time::Duration;
+use crate::audio_backend::chunk::{CHUNK_SIZE, SamplesChunk};
+use crate::song::{Song, SongID};
 
-pub type ArcSongBuffer = Arc<DashMap<PathBuf, Arc<Sound>>>;
+pub type SongBuffer = HashMap<SongID, Sound>;
 
 const BUFFER_SIZE: usize = 5; // buffer at most 5 songs. If 6 songs are loaded -> garbage collect
 
 pub struct AudioBuffer {
-    songs: ArcSongBuffer,
-    load_sender: Sender<(PathBuf, usize)>,
-    song_counter: usize,
+    songs: SongBuffer,
+    load_sender: Sender<Song>,
 }
 
 #[derive(Debug)]
@@ -25,31 +26,90 @@ pub enum OpenError {
     NotDecodable,
 }
 
+enum LoadInfo {
+    Chunk(SamplesChunk),
+    Duration(SongID, Duration),
+    Err(OpenError),
+}
+
+/**
+ * Loads chunks of songs, initiated through the load_receiver channel
+ */
+fn load_chunks(load_receiver: Receiver<Song>, chunk_sender: Sender<LoadInfo>) {
+    'l: for song in load_receiver.iter() {
+        if let Ok(file) = File::open(&song.get_path()) {
+            if let Ok(decoder) = Decoder::new(BufReader::new(file)) {
+                let channels = decoder.channels();
+                let sample_rate = decoder.sample_rate();
+                let duration = decoder.total_duration();
+
+                if let Some(duration) = duration {
+                    let _ = chunk_sender.send(LoadInfo::Duration(song.get_id(), duration));
+                }
+
+                let data = Box::new([0.0f32; CHUNK_SIZE]);
+                let mut index = 0;
+                let mut next_start_position = 0;
+                for sample in decoder.convert_samples() {
+                    let chunk_index = index % CHUNK_SIZE;
+                    data[chunk_index] = sample;
+
+                    // send chunk
+                    if chunk_index == CHUNK_SIZE-1 {
+                        let chunk = SamplesChunk {
+                            channels,
+                            sample_rate,
+                            start_position: next_start_position,
+                            length: CHUNK_SIZE,
+                            data: data.clone(),
+                            song: song.clone(),
+                        };
+                        next_start_position = index + 1;
+                        if chunk_sender.send(LoadInfo::Chunk(chunk)).is_err() {
+                            break 'l
+                        }
+                    }
+                    index += 1;
+                }
+                let chunk_index = index % CHUNK_SIZE;
+                if chunk_index != 0 {
+                    let chunk = SamplesChunk {
+                        channels,
+                        sample_rate,
+                        start_position: next_start_position,
+                        length: index - next_start_position,
+                        data: data.clone(),
+                        song: song.clone(),
+                    };
+                    if chunk_sender.send(LoadInfo::Chunk(chunk)).is_err() {
+                        break 'l
+                    }
+                }
+            } else {
+                let _ = chunk_sender.send(LoadInfo::Err(OpenError::NotDecodable));
+            }
+        } else {
+            let _ = chunk_sender.send(LoadInfo::Err(OpenError::FileNotFound));
+        }
+    }
+}
+
 // TODO: If background thread loads song it is possible to load it two times.
 impl AudioBuffer {
     /**
      * Creates a new AudioBuffer
      */
-    pub fn new() -> AudioBuffer {
-        let (load_sender, load_receiver): (Sender<(PathBuf, usize)>, Receiver<(PathBuf, usize)>) = unbounded();
-
-        let songs = Arc::new(DashMap::new());
-
-        let load_songs = songs.clone();
+    pub fn new(chunk_sender: Sender<LoadInfo>) -> AudioBuffer {
+        let (load_sender, load_receiver): (Sender<Song>, Receiver<Song>) = unbounded();
 
         // thread that loads buffers in background
         thread::spawn(move || {
-            for (path, counter) in load_receiver.iter() {
-                if !load_songs.contains_key(&path) {
-                    Self::load_blocking(&load_songs, path, counter).ok(); // TODO: send failure to main thread
-                }
-            }
+            load_chunks(load_receiver, chunk_sender);
         });
 
         AudioBuffer {
-            songs,
+            songs: HashMap::new(),
             load_sender,
-            song_counter: 0,
         }
     }
 
@@ -57,16 +117,15 @@ impl AudioBuffer {
      * Initiates the loading of the given path. Does return immediately.
      */
     #[allow(unused)]
-    pub fn load(&mut self, path: PathBuf) {
-        self.load_sender.send((path, self.song_counter)).unwrap();
-        self.song_counter += 1;
+    pub fn load(&mut self, song: Song) {
+        self.load_sender.send(song).unwrap();
     }
 
     /**
      * Loads the given path and makes it available in the contained hashmap. Blocks until the song is
      * loaded.
      */
-    pub fn load_blocking(songs: &ArcSongBuffer, path: PathBuf, counter: usize) -> Result<ArcSamplesBuffer, OpenError> {
+    pub fn load_blocking(songs: &SongBuffer, path: PathBuf, counter: usize) -> Result<ArcSamplesBuffer, OpenError> {
         if let Ok(file) = File::open(&path) {
             if let Ok(source) = Decoder::new(BufReader::new(file)) {
                 let channels = source.channels();

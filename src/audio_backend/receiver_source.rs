@@ -2,20 +2,12 @@ use std::time::Duration;
 use crossbeam::{Receiver, Sender, TryRecvError};
 use rodio::Source;
 use crate::audio_backend::{AudioBackendCommand, AudioUpdate, PlayingUpdate};
+use crate::audio_backend::chunk::SamplesChunk;
 use crate::song::Song;
 
-const CHUNK_SIZE: usize = 1024;
 const SOFT_FADEOUT_DECAY: f32 = 0.01;
 const PERIODIC_ACCESS_UPDATE_PERIOD: Duration = Duration::from_millis(100);
 
-pub struct SamplesChunk {
-    pub channels: u16,
-    pub sample_rate: u32,
-    pub duration: Duration,
-    pub data: Box<[f32; CHUNK_SIZE]>,
-    pub song: Song,
-    pub last_chunk: bool,
-}
 
 pub struct ReceiverSource {
     samples_receiver: Receiver<SamplesChunk>, // Receiver of the chunks to play

@@ -5,19 +5,18 @@ use crossbeam::{Receiver, Sender};
 use rodio::{cpal, DeviceTrait, Sink, Source};
 use rodio::cpal::traits::HostTrait;
 
-use done_access::DoneAccess;
 use periodic_access::PeriodicAccess;
 use start_access::StartAccess;
 
 use crate::audio_backend::audio_buffer::{AudioBuffer, OpenError};
 use crate::song::{Song, SongID};
 
-mod done_access;
 mod start_access;
 mod periodic_access;
 mod audio_buffer;
 mod arc_samples_buffer;
 mod receiver_source;
+mod chunk;
 
 const UPDATE_DURATION: Duration = Duration::from_millis(100);
 
@@ -97,7 +96,6 @@ pub enum AudioInfo {
 	Queued(Song),
 	SongStarts(Song, Duration, Duration),
 	FailedOpen(Song, OpenError),
-	SongEnded(Song),
 	SongDuration(SongID, Duration),
 	GarbageCollected(PathBuf),
 }
@@ -112,7 +110,6 @@ pub struct PlayingUpdate {
 pub enum AudioUpdate {
 	Playing(PlayingUpdate),
 	SongStarts(Song, Duration, Duration), // song played, total duration, start duration
-	SongEnded(Song),
 }
 
 pub enum AudioBackendCommand {
@@ -227,10 +224,6 @@ impl AudioBackend {
 					self.info_sender.send(AudioInfo::Playing(playing_update.song, current_song.get_real_play_duration(), current_song.total_duration)).unwrap();
 				}
 			}
-			AudioUpdate::SongEnded(path) => {
-				self.info_sender.send(AudioInfo::SongEnded(path)).unwrap();
-				self.current_song = None;
-			}
 			AudioUpdate::SongStarts(song, total_duration, start_duration) => {
 				self.info_sender.send(AudioInfo::SongStarts(song.clone(), total_duration, start_duration)).unwrap();
 				self.current_song = Some(CurrentSongState {
@@ -324,16 +317,6 @@ impl AudioBackend {
 								)).unwrap();
 						},
 						UPDATE_DURATION
-					);
-
-					// add done info
-					let update_sender = orig_update_sender.clone();
-					let song_copy = song.clone();
-					let done_access_source = DoneAccess::new(
-						periodic_access_source,
-						move |_| update_sender.send(
-							AudioBackendCommand::Update(AudioUpdate::SongEnded(song_copy.clone()))
-						).unwrap(),
 					);
 
 					if let Some(duration) = skip {
