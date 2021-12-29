@@ -1,6 +1,3 @@
-#![feature(destructuring_assignment)]
-#![feature(duration_consts_2)]
-
 use crate::musicus::Musicus;
 
 mod musicus;
