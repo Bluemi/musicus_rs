@@ -271,11 +271,9 @@ impl AudioBackend {
 	fn handle_update(&mut self, update: AudioUpdate) {
 		match update {
 			AudioUpdate::Playing(playing_update) => {
-				if let Some(current_song) = &mut self.current_song {
-					let first_chunk = &self.songs.get(&current_song.song.get_id()).unwrap()[0]; // use first chunk to get samplerate and channels
-					let duration = position_to_duration(playing_update.samples_played, first_chunk.sample_rate, first_chunk.channels);
-					self.info_sender.send(AudioInfo::Playing(playing_update.song_id, duration)).unwrap();
-				}
+				let first_chunk = &self.songs.get(&playing_update.song_id).unwrap()[0]; // use first chunk to get samplerate and channels
+				let duration = position_to_duration(playing_update.samples_played, first_chunk.sample_rate, first_chunk.channels);
+				self.info_sender.send(AudioInfo::Playing(playing_update.song_id, duration)).unwrap();
 			}
 			AudioUpdate::SongStarts(song_id) => {
 				self.info_sender.send(AudioInfo::SongStarts(song_id)).unwrap();
