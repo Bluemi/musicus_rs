@@ -11,6 +11,7 @@ use rodio::cpal::traits::HostTrait;
 
 use crate::audio_backend::chunk::{CHUNK_SIZE, duration_to_position, position_to_duration, SamplesChunk};
 use crate::audio_backend::receiver_source::ReceiverSource;
+// use crate::musicus::log;
 use crate::song::{Song, SongID};
 
 mod receiver_source;
@@ -108,7 +109,7 @@ pub enum AudioUpdate {
 pub enum AudioBackendCommand {
 	Command(AudioCommand), // commands from musicus
 	Update(AudioUpdate), // update from source
-	Chunk(LoadInfo), // chunk from loader
+	LoadInfo(LoadInfo), // chunk from loader
 }
 
 pub enum LoadInfo {
@@ -144,6 +145,7 @@ impl AudioBackend {
 		let receiver_source = ReceiverSource::new(chunk_receiver, audio_backend_sender);
 
 		sink.append(receiver_source);
+		sink.play();
 
 		AudioBackend {
 			sink,
@@ -170,7 +172,7 @@ impl AudioBackend {
 				match command {
 					AudioBackendCommand::Command(command) => self.handle_command(command),
 					AudioBackendCommand::Update(update) => self.handle_update(update),
-					AudioBackendCommand::Chunk(load_info) => self.handle_load_info(load_info),
+					AudioBackendCommand::LoadInfo(load_info) => self.handle_load_info(load_info),
 				}
 			}
 		}
@@ -221,10 +223,13 @@ impl AudioBackend {
 					// is last chunk in chunks? This would mean we are already past the last chunk (can happen by seeking)
 					if chunks.last().map(|c| c.last_chunk).unwrap_or(false) {
 						Self::play_next_song(&mut self.current_song, &mut self.next_song);
-					} // else -> we have to wait for further chunks
+					} else {
+						// we have to wait for further chunks
+						break;
+					}
 				}
 			}
-		} // else { we are still waiting for chunks to send for this song }
+		}
 	}
 
 	fn play_next_song(current_song: &mut Option<CurrentSongState>, next_song: &mut Option<Song>) {
@@ -245,14 +250,16 @@ impl AudioBackend {
 	}
 
 	fn play(&mut self, song: Song) {
+		self.load(song.clone());
 		self.current_song = Some(CurrentSongState {
 			song,
 			play_position: 0
 		});
-		// TODO: try to send next chunks to source
+		self.send_next_chunks();
 	}
 
 	fn queue(&mut self, song: Song) {
+		self.load(song.clone());
 		self.next_song = Some(song);
 	}
 
@@ -338,7 +345,7 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 				let duration = decoder.total_duration();
 
 				if let Some(duration) = duration {
-					let _ = chunk_sender.send(AudioBackendCommand::Chunk(LoadInfo::Duration(song.get_id(), duration)));
+					let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
 				}
 
 				let mut data = Box::new([0.0f32; CHUNK_SIZE]);
@@ -362,7 +369,7 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 							last_chunk: converted.peek().is_none(),
 						};
 						next_start_position = index + 1;
-						if chunk_sender.send(AudioBackendCommand::Chunk(LoadInfo::Chunk(chunk))).is_err() {
+						if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {
 							break 'l
 						}
 					}
@@ -379,15 +386,15 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 						song: song.clone(),
 						last_chunk: true,
 					};
-					if chunk_sender.send(AudioBackendCommand::Chunk(LoadInfo::Chunk(chunk))).is_err() {
+					if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {
 						break 'l
 					}
 				}
 			} else {
-				let _ = chunk_sender.send(AudioBackendCommand::Chunk(LoadInfo::Err(song, OpenError::NotDecodable)));
+				let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song, OpenError::NotDecodable)));
 			}
 		} else {
-			let _ = chunk_sender.send(AudioBackendCommand::Chunk(LoadInfo::Err(song, OpenError::FileNotFound)));
+			let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song, OpenError::FileNotFound)));
 		}
 	}
 }
@@ -399,6 +406,7 @@ impl AudioBackendCommand {
 		let mut last_playing_update = None;
 		let mut seek_command: Option<SeekCommand> = None;
 		let mut last_set_volume: Option<f32> = None;
+		let mut load_infos = Vec::new();
 
 		for command_or_update in vec.into_iter() {
 			match command_or_update {
@@ -424,9 +432,12 @@ impl AudioBackendCommand {
 						update => result.push(AudioBackendCommand::Update(update)),
 					}
 				}
-				AudioBackendCommand::Chunk(_) => {}
+				li @ AudioBackendCommand::LoadInfo(_) => {
+					load_infos.push(li);
+				}
 			}
 		}
+		result.append(&mut load_infos);
 		if let Some(play_command) = last_play_command {
 			result.push(AudioBackendCommand::Command(AudioCommand::Play(play_command)));
 		}
