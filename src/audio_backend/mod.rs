@@ -277,15 +277,6 @@ impl AudioBackend {
 			}
 			AudioUpdate::SongStarts(song_id) => {
 				self.info_sender.send(AudioInfo::SongStarts(song_id)).unwrap();
-				/*
-				if let Some(song) = self.songs.get(&song_id) {
-					log(&format!("song starts: {}\n", song[0].song.get_title())); // TODO remove here
-					self.current_song = Some(CurrentSongState {
-						song: song[0].song.clone(),
-						play_position: 0,
-					});
-				}
-				 */
 				/* TODO: reimplement garbage collection
 				if let Some(path_buf) = self.audio_buffer.check_garbage_collect() {
 					self.info_sender.send(AudioInfo::GarbageCollected(path_buf)).unwrap();
