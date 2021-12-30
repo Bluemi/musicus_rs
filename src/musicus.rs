@@ -87,10 +87,10 @@ impl Musicus {
 
 		let backend_volume = cache.volume as f32 * 0.01;
 
-		thread::spawn(move || {
+		thread::Builder::new().name("backend".to_string()).spawn(move || {
 			let mut audio_backend = AudioBackend::new(info_sender, audio_backend_sender_clone, backend_volume);
 			audio_backend.run(audio_backend_receiver);
-		});
+		}).expect("Failed to spawn backend thread");
 
 		// load playlists
 		let playlists = load_playlists();
@@ -188,11 +188,9 @@ impl Musicus {
 		let mut should_follow = false;
 		for info in self.info_receiver.try_iter() {
 			match info {
-				AudioInfo::Playing(_song, play_position, total_duration) => {
+				AudioInfo::Playing(song_id, play_position) => {
 					if let Some(playing_song) = &mut self.playing_song_info {
 						playing_song.play_position = play_position;
-
-						let duration_left = total_duration.checked_sub(play_position).unwrap_or_else(|| Duration::new(0, 0));
 
 						// check for load command
 						if !playing_song.loaded_next && matches!(self.play_state.get_current_play_position(), Some(PlayPosition::Playlist(..))) {
@@ -207,17 +205,21 @@ impl Musicus {
 						}
 
 						// check for queue command
-						if !playing_song.queued_next && duration_left < QUEUE_OFFSET {
-							if let Some(PlayPosition::Playlist(song_id, ..)) = self.play_state.peek_next_song() {
-								let song = self.song_buffer.get(song_id).unwrap();
-								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))).unwrap();
-								if let Err(msg) = self.play_state.play_next_song(&self.playlist_manager) {
-									self.debug_manager.add_error_entry(format!("failed to start next song: {}", msg));
+						if let Some(total_duration) = self.song_buffer.get(song_id).unwrap().get_total_duration() {
+							let duration_left = total_duration.checked_sub(play_position).unwrap_or_else(|| Duration::new(0, 0));
+
+							if !playing_song.queued_next && duration_left < QUEUE_OFFSET {
+								if let Some(PlayPosition::Playlist(song_id, ..)) = self.play_state.peek_next_song() {
+									let song = self.song_buffer.get(song_id).unwrap();
+									self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))).unwrap();
+									if let Err(msg) = self.play_state.play_next_song(&self.playlist_manager) {
+										self.debug_manager.add_error_entry(format!("failed to start next song: {}", msg));
+									}
+									self.debug_manager.add_entry(format!("queueing \"{}\"", song.get_title()));
+									playing_song.queued_next = true;
+								} else {
+									self.debug_manager.add_error_entry("no next song to queue".to_string());
 								}
-								self.debug_manager.add_entry(format!("queueing \"{}\"", song.get_title()));
-								playing_song.queued_next = true;
-							} else {
-								self.debug_manager.add_error_entry("no next song to queue".to_string());
 							}
 						}
 					} else {
@@ -227,23 +229,18 @@ impl Musicus {
 				AudioInfo::FailedOpen(song, e) => {
 					self.debug_manager.add_entry_color(format!("Failed to open: {:?} {:?}\n", song.get_path(), e), RenderColor::Red, RenderColor::Black);
 				}
-				AudioInfo::SongEnded(song) => {
-					self.debug_manager.add_entry(format!("song ended: \"{}\"\n", song.get_title()));
-				}
-				AudioInfo::SongStarts(song, total_duration, start_duration) => {
-					let new_song_starts = start_duration == Duration::new(0, 0); // whether a new song starts (otherwise the song was forwarded or rewound)
+				AudioInfo::SongStarts(song_id) => {
+					let song = self.song_buffer.get(song_id).unwrap();
 					self.playing_song_info = Some(SongInfo {
 						title: song.get_title().to_string(),
-						play_position: start_duration,
-						total_duration,
-						queued_next: !new_song_starts,
-						loaded_next: !new_song_starts,
+						play_position: Duration::new(0, 0),
+						total_duration: song.get_total_duration().unwrap_or(Duration::new(0, 0)), // TODO: fix; SongInfo.total_duration should be Option
+						queued_next: false,
+						loaded_next: false,
 					});
 					has_to_render = true;
-					if new_song_starts {
-						self.debug_manager.add_entry(format!("start song \"{}\"", song.get_title()));
-						should_follow = true;
-					}
+					self.debug_manager.add_entry(format!("start song \"{}\"", song.get_title()));
+					should_follow = true;
 				}
 				AudioInfo::SongDuration(song_id, duration) => {
 					self.song_buffer.update_total_duration(song_id, duration);

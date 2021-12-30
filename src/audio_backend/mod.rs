@@ -1,51 +1,44 @@
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufReader;
 use std::path::PathBuf;
+use std::thread;
 use std::time::Duration;
 
-use crossbeam::{Receiver, Sender};
-use rodio::{cpal, DeviceTrait, Sink, Source};
+use crossbeam::{bounded, Receiver, Sender, unbounded};
+use rodio::{cpal, Decoder, DeviceTrait, Sink, Source, OutputStream, OutputStreamHandle};
 use rodio::cpal::traits::HostTrait;
 
-use done_access::DoneAccess;
-use periodic_access::PeriodicAccess;
-use start_access::StartAccess;
-
-use crate::audio_backend::audio_buffer::{AudioBuffer, OpenError};
+use crate::audio_backend::chunk::{CHUNK_SIZE, duration_to_position, position_to_duration, SamplesChunk};
+use crate::audio_backend::receiver_source::ReceiverSource;
 use crate::song::{Song, SongID};
 
-mod done_access;
-mod start_access;
-mod periodic_access;
-mod audio_buffer;
-mod arc_samples_buffer;
+mod receiver_source;
+mod chunk;
 
-const UPDATE_DURATION: Duration = Duration::from_millis(100);
+const CHUNK_BUFFER_SIZE: usize = 4;
 
 pub struct AudioBackend {
-	sink: rodio::Sink,
-	_stream: rodio::OutputStream,
-	stream_handle: rodio::OutputStreamHandle,
-    info_sender: Sender<AudioInfo>, // sender for info to musicus
-	update_sender: Sender<AudioBackendCommand>, // internal updates for source state
-	current_song: Option<CurrentSongState>, //
-	audio_buffer: AudioBuffer,
+	sink: Sink,
+	_stream: OutputStream, // TODO: try remove
+	_stream_handle: OutputStreamHandle, // TODO: try remove
+
+	/// sender for info to musicus
+    info_sender: Sender<AudioInfo>,
+	/// sender to send the next tasks to loader thread
+	load_task_sender: Sender<Song>,
+	/// sender to source
+	source_chunk_sender: Sender<SamplesChunk>,
+
+	songs: HashMap<SongID, Vec<SamplesChunk>>, // TODO: Try to save song not in chunks but extra
+	current_song: Option<CurrentSongState>,
+	next_song: Option<Song>,
 	volume: f32,
 }
 
 struct CurrentSongState {
 	song: Song,
-	total_duration: Duration,
-	play_duration: Duration,
-	start_duration: Duration,
-}
-
-impl CurrentSongState {
-	fn get_real_play_duration(&self) -> Duration {
-		self.play_duration + self.start_duration
-	}
-
-	fn set_real_play_duration(&mut self, duration: Duration) {
-		self.play_duration = duration.checked_sub(self.start_duration).unwrap_or_else(|| Duration::new(0, 0));
-	}
+	play_position: usize, // the number of samples already sent to source. A sample is one f32 value.
 }
 
 pub enum AudioCommand {
@@ -92,31 +85,311 @@ pub enum SeekDirection {
 
 #[derive(Debug)]
 pub enum AudioInfo {
-	Playing(Song, Duration, Duration), // playing song, play duration, total duration
+	Playing(SongID, Duration), // playing song, play duration
 	Queued(Song),
-	SongStarts(Song, Duration, Duration),
+	SongStarts(SongID),
 	FailedOpen(Song, OpenError),
-	SongEnded(Song),
 	SongDuration(SongID, Duration),
 	GarbageCollected(PathBuf),
 }
 
 #[derive(Debug)]
 pub struct PlayingUpdate {
-	song: Song,
-	duration_played: Duration,
+	song_id: SongID,
+	samples_played: usize,
 }
 
 #[derive(Debug)]
 pub enum AudioUpdate {
 	Playing(PlayingUpdate),
-	SongStarts(Song, Duration, Duration), // song played, total duration, start duration
-	SongEnded(Song),
+	SongStarts(SongID),
 }
 
 pub enum AudioBackendCommand {
-	Command(AudioCommand),
-	Update(AudioUpdate),
+	Command(AudioCommand), // commands from musicus
+	Update(AudioUpdate), // update from source
+	LoadInfo(LoadInfo), // chunk from loader
+}
+
+pub enum LoadInfo {
+	Chunk(SamplesChunk),
+	Duration(SongID, Duration),
+	Err(Song, OpenError),
+}
+
+#[derive(Debug)]
+pub enum OpenError {
+	FileNotFound,
+	NotDecodable,
+}
+
+impl AudioBackend {
+	pub fn new(info_sender: Sender<AudioInfo>, audio_backend_sender: Sender<AudioBackendCommand>, volume: f32) -> AudioBackend {
+		// sink and devices
+		let pulse_device = cpal::default_host().output_devices().unwrap().find(|d| d.name().unwrap().contains("pulse")).unwrap(); // TODO: dont force pulse device
+		let (stream, stream_handle) = OutputStream::try_from_device(&pulse_device)
+			.unwrap_or_else(|_| OutputStream::try_default().unwrap());
+
+		let sink = Sink::try_new(&stream_handle).unwrap();
+
+		// loader thread
+		let (load_task_sender, load_task_receiver) = unbounded();
+		let abs = audio_backend_sender.clone();
+		thread::Builder::new().name("loader".to_string()).spawn(move || {
+			load_chunks(load_task_receiver, abs);
+		}).expect("Failed to spawn loader thread");
+
+		// receiver source
+		let (source_chunk_sender, chunk_receiver) = bounded(CHUNK_BUFFER_SIZE);
+		let receiver_source = ReceiverSource::new(chunk_receiver, audio_backend_sender);
+
+		sink.append(receiver_source);
+		sink.play();
+		sink.set_volume(volume);
+
+		AudioBackend {
+			sink,
+			_stream: stream,
+			_stream_handle: stream_handle,
+
+			info_sender,
+			load_task_sender,
+			source_chunk_sender,
+
+			current_song: None,
+			next_song: None,
+			songs: HashMap::new(),
+			volume,
+		}
+	}
+
+	pub fn run(&mut self, audio_backend_receiver: Receiver<AudioBackendCommand>) {
+		while let Ok(command) = audio_backend_receiver.recv() {
+			let mut commands = vec![command];
+			commands.extend(audio_backend_receiver.try_iter());
+			let commands = AudioBackendCommand::simplify(commands);
+			for command in commands.into_iter() {
+				match command {
+					AudioBackendCommand::Command(command) => self.handle_command(command),
+					AudioBackendCommand::Update(update) => self.handle_update(update),
+					AudioBackendCommand::LoadInfo(load_info) => self.handle_load_info(load_info),
+				}
+			}
+		}
+	}
+
+	fn handle_command(&mut self, command: AudioCommand) {
+		match command {
+			AudioCommand::Play(song) => self.play(song),
+			AudioCommand::Queue(song) => self.queue(song),
+			AudioCommand::Load(song) => self.load(song),
+			AudioCommand::Pause => self.pause(),
+			AudioCommand::Unpause => self.unpause(),
+			AudioCommand::Seek(seek_command) => self.seek(seek_command),
+			AudioCommand::SetVolume(volume) => self.set_volume(volume),
+		}
+	}
+
+	/// Tries to send the next chunks to source
+	fn send_next_chunks(&mut self) { // TODO: why is this called so often?
+		loop {
+			let songs = &self.songs;
+			let chunks = match self.current_song.as_ref().and_then(|x| songs.get(&x.song.get_id())) {
+				Some(x) => x,
+				None => break,
+			};
+
+			let next_chunk_index = self.current_song.as_ref().unwrap().play_position / CHUNK_SIZE + 1;
+			match chunks.get(next_chunk_index) {
+				Some(chunk) => {
+					match self.source_chunk_sender.try_send((*chunk).clone()) {
+						Ok(_) => {
+							// we can use CHUNK_SIZE here, as play_position will be set to 0 if this is last_chunk and length != CHUNK_SIZE
+							self.current_song.as_mut().unwrap().play_position += CHUNK_SIZE;
+						}
+						Err(crossbeam::TrySendError::Full(_)) => {
+							break; // channel is full -> stop to try sending chunks
+						}
+						Err(_) => {
+							todo!()
+						}
+					}
+					if chunk.last_chunk {
+						// we have completed the current song -> switch to next song
+						Self::play_next_song(&mut self.current_song, &mut self.next_song);
+					}
+				}
+				None => {
+					// is last chunk in chunks? This would mean we are already past the last chunk (can happen by seeking)
+					if chunks.last().map(|c| c.last_chunk).unwrap_or(false) {
+						Self::play_next_song(&mut self.current_song, &mut self.next_song);
+					} else {
+						// we have to wait for further chunks
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	fn play_next_song(current_song: &mut Option<CurrentSongState>, next_song: &mut Option<Song>) {
+		if let Some(next_song) = next_song.take() {
+			*current_song = Some(CurrentSongState {
+				song: next_song,
+				play_position: 0
+			});
+		} else {
+			*current_song = None;
+		}
+	}
+
+	fn load(&self, song: Song) {
+		if !self.songs.contains_key(&song.get_id()) {
+			let _ = self.load_task_sender.send(song);
+		}
+	}
+
+	fn play(&mut self, song: Song) {
+		self.load(song.clone());
+		self.current_song = Some(CurrentSongState {
+			song,
+			play_position: 0
+		});
+		self.send_next_chunks();
+	}
+
+	fn queue(&mut self, song: Song) {
+		self.load(song.clone());
+		self.next_song = Some(song);
+	}
+
+	fn set_volume(&mut self, volume: f32) {
+		self.sink.set_volume(volume);
+		self.volume = volume;
+	}
+
+	fn handle_update(&mut self, update: AudioUpdate) {
+		match update {
+			AudioUpdate::Playing(playing_update) => {
+				let first_chunk = &self.songs.get(&playing_update.song_id).unwrap()[0]; // use first chunk to get samplerate and channels
+				let duration = position_to_duration(playing_update.samples_played, first_chunk.sample_rate, first_chunk.channels);
+				self.info_sender.send(AudioInfo::Playing(playing_update.song_id, duration)).unwrap();
+				self.send_next_chunks();
+			}
+			AudioUpdate::SongStarts(song_id) => {
+				self.info_sender.send(AudioInfo::SongStarts(song_id)).unwrap();
+				/* TODO: reimplement garbage collection
+				if let Some(path_buf) = self.audio_buffer.check_garbage_collect() {
+					self.info_sender.send(AudioInfo::GarbageCollected(path_buf)).unwrap();
+				}
+				 */
+			}
+		}
+	}
+
+	fn handle_load_info(&mut self, load_info: LoadInfo) {
+		match load_info {
+			LoadInfo::Chunk(chunk) => {
+				self.songs.entry(chunk.song.get_id()).or_insert(Vec::new()).push(chunk);
+				self.send_next_chunks();
+			}
+			LoadInfo::Duration(song_id, duration) => {
+				let _ = self.info_sender.send(AudioInfo::SongDuration(song_id, duration)); // TODO: handle error
+			}
+			LoadInfo::Err(song, e) => {
+				let _ = self.info_sender.send(AudioInfo::FailedOpen(song, e)); // TODO: handle error
+			}
+		}
+	}
+
+	fn seek(&mut self, seek_command: SeekCommand) {
+		if let Some(current_song) = &mut self.current_song {
+			let first_chunk = &self.songs.get(&current_song.song.get_id()).unwrap()[0];
+			let offset = duration_to_position(&seek_command.duration, first_chunk.sample_rate, first_chunk.channels);
+			match seek_command.direction {
+				SeekDirection::Forward => {
+					current_song.play_position += offset;
+				}
+				SeekDirection::Backward => {
+					current_song.play_position = current_song.play_position.checked_sub(offset).unwrap_or(0);
+				}
+			}
+		}
+	}
+
+	fn pause(&mut self) {
+		self.sink.pause();
+	}
+
+	fn unpause(&mut self) {
+		self.sink.play();
+	}
+}
+
+/**
+ * Loads chunks of songs, initiated through the load_receiver channel
+ */
+fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendCommand>) {
+	'l: for song in task_receiver.iter() {
+		if let Ok(file) = File::open(&song.get_path()) {
+			if let Ok(decoder) = Decoder::new(BufReader::new(file)) {
+				let channels = decoder.channels();
+				let sample_rate = decoder.sample_rate();
+				let duration = decoder.total_duration();
+
+				if let Some(duration) = duration {
+					let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
+				}
+
+				let mut data = Box::new([0.0f32; CHUNK_SIZE]);
+				let mut index = 0;
+				let mut next_start_position = 0;
+				let mut converted = decoder.convert_samples().peekable();
+
+				while let Some(sample) = converted.next() {
+					let chunk_index = index % CHUNK_SIZE;
+					data[chunk_index] = sample;
+
+					// send chunk
+					if chunk_index == CHUNK_SIZE-1 {
+						let chunk = SamplesChunk {
+							channels,
+							sample_rate,
+							start_position: next_start_position,
+							length: CHUNK_SIZE,
+							data: data.clone(),
+							song: song.clone(),
+							last_chunk: converted.peek().is_none(),
+						};
+						next_start_position = index + 1;
+						if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {
+							break 'l
+						}
+					}
+					index += 1;
+				}
+				let chunk_index = index % CHUNK_SIZE;
+				if chunk_index != 0 {
+					let chunk = SamplesChunk {
+						channels,
+						sample_rate,
+						start_position: next_start_position,
+						length: index - next_start_position,
+						data: data.clone(),
+						song: song.clone(),
+						last_chunk: true,
+					};
+					if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {
+						break 'l
+					}
+				}
+			} else {
+				let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song, OpenError::NotDecodable)));
+			}
+		} else {
+			let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song, OpenError::FileNotFound)));
+		}
+	}
 }
 
 impl AudioBackendCommand {
@@ -126,6 +399,7 @@ impl AudioBackendCommand {
 		let mut last_playing_update = None;
 		let mut seek_command: Option<SeekCommand> = None;
 		let mut last_set_volume: Option<f32> = None;
+		let mut load_infos = Vec::new();
 
 		for command_or_update in vec.into_iter() {
 			match command_or_update {
@@ -151,8 +425,12 @@ impl AudioBackendCommand {
 						update => result.push(AudioBackendCommand::Update(update)),
 					}
 				}
+				li @ AudioBackendCommand::LoadInfo(_) => {
+					load_infos.push(li);
+				}
 			}
 		}
+		result.append(&mut load_infos);
 		if let Some(play_command) = last_play_command {
 			result.push(AudioBackendCommand::Command(AudioCommand::Play(play_command)));
 		}
@@ -166,196 +444,5 @@ impl AudioBackendCommand {
 			result.push(AudioBackendCommand::Command(AudioCommand::SetVolume(v)));
 		}
 		result
-	}
-}
-
-impl AudioBackend {
-	pub fn new(info_sender: Sender<AudioInfo>, audio_backend_sender: Sender<AudioBackendCommand>, volume: f32) -> AudioBackend {
-		let pulse_device = cpal::default_host().output_devices().unwrap().find(|d| d.name().unwrap().contains("pulse")).unwrap(); // TODO: dont force pulse device
-		let (stream, stream_handle) = rodio::OutputStream::try_from_device(&pulse_device)
-			.unwrap_or_else(|_| rodio::OutputStream::try_default().unwrap());
-		AudioBackend {
-			sink: rodio::Sink::try_new(&stream_handle).unwrap(),
-			_stream: stream,
-			stream_handle,
-			info_sender,
-			update_sender: audio_backend_sender,
-			current_song: None,
-			audio_buffer: AudioBuffer::new(),
-			volume,
-		}
-	}
-
-	pub fn run(&mut self, audio_backend_receiver: Receiver<AudioBackendCommand>) {
-		while let Ok(command) = audio_backend_receiver.recv() {
-			let mut commands = vec![command];
-			commands.extend(audio_backend_receiver.try_iter());
-			let commands = AudioBackendCommand::simplify(commands);
-			for command in commands.into_iter() {
-				match command {
-					AudioBackendCommand::Command(command) => self.handle_command(command),
-					AudioBackendCommand::Update(update) => self.handle_update(update),
-				}
-			}
-		}
-	}
-
-	fn handle_command(&mut self, command: AudioCommand) {
-		match command {
-			AudioCommand::Play(song) => Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &song, None, &mut self.audio_buffer, self.volume),
-			AudioCommand::Queue(song) => Self::queue(&mut self.sink, &self.update_sender, &self.info_sender, &song, None, &mut self.audio_buffer),
-			AudioCommand::Load(song) => self.audio_buffer.load(song.get_path().to_path_buf()),
-			AudioCommand::Pause => self.pause(),
-			AudioCommand::Unpause => self.unpause(),
-			AudioCommand::Seek(seek_command) => self.seek(seek_command),
-			AudioCommand::SetVolume(volume) => self.set_volume(volume),
-		}
-	}
-
-	fn set_volume(&mut self, volume: f32) {
-		self.sink.set_volume(volume);
-		self.volume = volume;
-	}
-
-	fn handle_update(&mut self, update: AudioUpdate) {
-		match update {
-			AudioUpdate::Playing(playing_update) => {
-				if let Some(current_song) = &mut self.current_song {
-					assert_eq!(current_song.song.get_path(), playing_update.song.get_path());
-					current_song.set_real_play_duration(playing_update.duration_played);
-					self.info_sender.send(AudioInfo::Playing(playing_update.song, current_song.get_real_play_duration(), current_song.total_duration)).unwrap();
-				}
-			}
-			AudioUpdate::SongEnded(path) => {
-				self.info_sender.send(AudioInfo::SongEnded(path)).unwrap();
-				self.current_song = None;
-			}
-			AudioUpdate::SongStarts(song, total_duration, start_duration) => {
-				self.info_sender.send(AudioInfo::SongStarts(song.clone(), total_duration, start_duration)).unwrap();
-				self.current_song = Some(CurrentSongState {
-					song,
-					total_duration,
-					play_duration: Duration::new(0, 0),
-					start_duration,
-				});
-				if let Some(path_buf) = self.audio_buffer.check_garbage_collect() {
-					self.info_sender.send(AudioInfo::GarbageCollected(path_buf)).unwrap();
-				}
-			}
-		}
-	}
-
-	fn seek(&mut self, seek_command: SeekCommand) {
-		if let Some(current_song) = &mut self.current_song {
-			current_song.start_duration = match seek_command.direction {
-				SeekDirection::Forward => {
-					(current_song.get_real_play_duration() + seek_command.duration).min(current_song.total_duration)
-				}
-				SeekDirection::Backward => {
-					current_song.get_real_play_duration().checked_sub(seek_command.duration).unwrap_or_else(|| Duration::new(0, 0))
-				}
-			};
-			current_song.play_duration = Duration::new(0, 0);
-			Self::play(&mut self.sink, &self.stream_handle, &self.update_sender, &self.info_sender, &current_song.song, Some(current_song.get_real_play_duration()), &mut self.audio_buffer, self.volume);
-		}
-	}
-
-	fn play(
-		sink: &mut Sink,
-		stream_handle: &rodio::OutputStreamHandle,
-		update_sender: &Sender<AudioBackendCommand>,
-		info_sender: &Sender<AudioInfo>,
-		song: &Song,
-		skip: Option<Duration>,
-		audio_buffer: &mut AudioBuffer,
-        volume: f32,
-	) {
-		if !sink.empty() {
-			sink.stop();
-			*sink = rodio::Sink::try_new(stream_handle).unwrap();
-		}
-		sink.set_volume(volume);
-		Self::queue(sink, update_sender, info_sender, song, skip, audio_buffer);
-		sink.play();
-	}
-
-	fn queue(
-		sink: &mut Sink,
-		orig_update_sender: &Sender<AudioBackendCommand>,
-		info_sender: &Sender<AudioInfo>,
-		song: &Song,
-		skip: Option<Duration>,
-		audio_buffer: &mut AudioBuffer,
-	) {
-		match audio_buffer.get(song.get_path()) {
-			Ok(song_buffer) => {
-				if let Some(total_duration) = song_buffer.total_duration() {
-					// send total duration info
-					if song.get_total_duration().is_none() {
-						info_sender.send(AudioInfo::SongDuration(song.get_id(), total_duration)).unwrap();
-					}
-
-					// add start info
-					let update_sender = orig_update_sender.clone();
-					let song_copy = song.clone();
-					let start_access_source = StartAccess::new(
-						song_buffer,
-						move || update_sender.send(
-							AudioBackendCommand::Update(AudioUpdate::SongStarts(
-								song_copy.clone(), total_duration, skip.unwrap_or_else(|| Duration::new(0, 0))
-							))
-						).unwrap(),
-					);
-
-					// add playing info
-					let update_sender = orig_update_sender.clone();
-					let song_copy = song.clone();
-					let periodic_access_source = PeriodicAccess::new(
-						start_access_source,
-						move |_source, duration_played| {
-							update_sender.send(
-								AudioBackendCommand::Update(AudioUpdate::Playing(
-									PlayingUpdate {
-										song: song_copy.clone(),
-										duration_played,
-									}
-								)
-								)).unwrap();
-						},
-						UPDATE_DURATION
-					);
-
-					// add done info
-					let update_sender = orig_update_sender.clone();
-					let song_copy = song.clone();
-					let done_access_source = DoneAccess::new(
-						periodic_access_source,
-						move |_| update_sender.send(
-							AudioBackendCommand::Update(AudioUpdate::SongEnded(song_copy.clone()))
-						).unwrap(),
-					);
-
-					if let Some(duration) = skip {
-						let source = done_access_source.skip_duration(duration);
-						sink.append(source);
-					} else {
-						sink.append(done_access_source);
-					}
-
-					info_sender.send(AudioInfo::Queued(song.clone())).unwrap();
-				}
-			},
-			Err(e) => {
-				info_sender.send(AudioInfo::FailedOpen(song.clone(), e)).unwrap();
-			}
-		}
-	}
-
-	fn pause(&mut self) {
-		self.sink.pause();
-	}
-
-	fn unpause(&mut self) {
-		self.sink.play();
 	}
 }
