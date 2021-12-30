@@ -2,7 +2,7 @@ use std::time::Duration;
 use crossbeam::{Receiver, Sender};
 use rodio::Source;
 use crate::audio_backend::{AudioBackendCommand, AudioUpdate, PlayingUpdate};
-use crate::audio_backend::chunk::{CHUNK_SIZE, SamplesChunk};
+use crate::audio_backend::chunk::SamplesChunk;
 
 const SOFT_FADEOUT_DECAY: f32 = 0.01;
 
@@ -12,7 +12,6 @@ pub struct ReceiverSource {
     update_sender: Sender<AudioBackendCommand>, // Send AudioUpdates to Backend
     current_chunk: Option<SamplesChunk>,
     samples_counter: usize, // points to the current position in current_chunk
-    chunk_counter: usize, // counts the number of chunks that are completely played
     last_value: f32,
 }
 
@@ -23,7 +22,6 @@ impl ReceiverSource {
             update_sender,
             current_chunk: None,
             samples_counter: 0,
-            chunk_counter: 0,
             last_value: 0.0,
         }
     }
@@ -39,15 +37,13 @@ impl ReceiverSource {
                             chunk.song.get_id()
                         ))
                     );
-                    self.chunk_counter = 0;
                 } else {
-                    self.chunk_counter += 1;
                     // inform backend for every chunk, only if not new song
                     let _ = self.update_sender.send(
                         AudioBackendCommand::Update(AudioUpdate::Playing(
                             PlayingUpdate {
                                 song_id: chunk.song.get_id(),
-                                samples_played: self.chunk_counter*CHUNK_SIZE,
+                                samples_played: chunk.start_position,
                             }
                         ))
                     );
