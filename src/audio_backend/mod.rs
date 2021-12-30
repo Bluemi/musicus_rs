@@ -145,6 +145,7 @@ impl AudioBackend {
 
 		sink.append(receiver_source);
 		sink.play();
+		sink.set_volume(volume);
 
 		AudioBackend {
 			sink,
