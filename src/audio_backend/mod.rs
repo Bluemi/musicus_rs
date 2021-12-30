@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 
@@ -86,11 +85,10 @@ pub enum SeekDirection {
 #[derive(Debug)]
 pub enum AudioInfo {
 	Playing(SongID, Duration), // playing song, play duration
-	Queued(Song),
 	SongStarts(SongID),
 	FailedOpen(Song, OpenError),
 	SongDuration(SongID, Duration),
-	GarbageCollected(PathBuf),
+	// GarbageCollected(PathBuf), // TODO
 }
 
 #[derive(Debug)]
@@ -271,7 +269,7 @@ impl AudioBackend {
 	fn handle_update(&mut self, update: AudioUpdate) {
 		match update {
 			AudioUpdate::Playing(playing_update) => {
-				let first_chunk = &self.songs.get(&playing_update.song_id).unwrap()[0]; // use first chunk to get samplerate and channels
+				let first_chunk = &self.songs.get(&playing_update.song_id).unwrap()[0]; // use first chunk to get sample rate and channels
 				let duration = position_to_duration(playing_update.samples_played, first_chunk.sample_rate, first_chunk.channels);
 				self.info_sender.send(AudioInfo::Playing(playing_update.song_id, duration)).unwrap();
 				self.send_next_chunks();
