@@ -11,7 +11,6 @@ use rodio::cpal::traits::HostTrait;
 
 use crate::audio_backend::chunk::{CHUNK_SIZE, duration_to_position, position_to_duration, SamplesChunk};
 use crate::audio_backend::receiver_source::ReceiverSource;
-// use crate::musicus::log;
 use crate::song::{Song, SongID};
 
 mod receiver_source;
@@ -191,7 +190,7 @@ impl AudioBackend {
 	}
 
 	/// Tries to send the next chunks to source
-	fn send_next_chunks(&mut self) {
+	fn send_next_chunks(&mut self) { // TODO: why is this called so often?
 		loop {
 			let songs = &self.songs;
 			let chunks = match self.current_song.as_ref().and_then(|x| songs.get(&x.song.get_id())) {
@@ -274,15 +273,19 @@ impl AudioBackend {
 				let first_chunk = &self.songs.get(&playing_update.song_id).unwrap()[0]; // use first chunk to get samplerate and channels
 				let duration = position_to_duration(playing_update.samples_played, first_chunk.sample_rate, first_chunk.channels);
 				self.info_sender.send(AudioInfo::Playing(playing_update.song_id, duration)).unwrap();
+				self.send_next_chunks();
 			}
 			AudioUpdate::SongStarts(song_id) => {
 				self.info_sender.send(AudioInfo::SongStarts(song_id)).unwrap();
+				/*
 				if let Some(song) = self.songs.get(&song_id) {
+					log(&format!("song starts: {}\n", song[0].song.get_title())); // TODO remove here
 					self.current_song = Some(CurrentSongState {
 						song: song[0].song.clone(),
 						play_position: 0,
 					});
 				}
+				 */
 				/* TODO: reimplement garbage collection
 				if let Some(path_buf) = self.audio_buffer.check_garbage_collect() {
 					self.info_sender.send(AudioInfo::GarbageCollected(path_buf)).unwrap();

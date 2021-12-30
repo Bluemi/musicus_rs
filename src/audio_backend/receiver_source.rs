@@ -34,7 +34,6 @@ impl ReceiverSource {
             Ok(chunk) => {
                 // check for new song
                 if self.current_chunk.as_ref().map(|c| c.song.get_id() != chunk.song.get_id()).unwrap_or(true) {
-                    // TODO send SongStarts update
                     let _ = self.update_sender.send(
                         AudioBackendCommand::Update(AudioUpdate::SongStarts(
                             chunk.song.get_id()
