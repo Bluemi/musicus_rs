@@ -20,8 +20,7 @@ const CHUNK_BUFFER_SIZE: usize = 4;
 
 pub struct AudioBackend {
 	sink: Sink,
-	_stream: OutputStream, // TODO: try remove
-	_stream_handle: OutputStreamHandle, // TODO: try remove
+	_stream: OutputStream,
 
 	/// sender for info to musicus
     info_sender: Sender<AudioInfo>,
@@ -149,7 +148,6 @@ impl AudioBackend {
 		AudioBackend {
 			sink,
 			_stream: stream,
-			_stream_handle: stream_handle,
 
 			info_sender,
 			load_task_sender,
