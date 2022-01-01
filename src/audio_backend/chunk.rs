@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 use crate::song::SongID;
 
@@ -11,8 +12,8 @@ pub struct SamplesChunk {
     pub start_position: usize,
     /// The number of samples in this chunk. A sample is one f32 value.
     pub length: usize,
-    pub data: Box<[f32; CHUNK_SIZE]>, // TODO: use Arc
-    pub song_id: SongID, // TODO: try to replace with song_id
+    pub data: Arc<[f32; CHUNK_SIZE]>,
+    pub song_id: SongID,
     pub last_chunk: bool,
 }
 

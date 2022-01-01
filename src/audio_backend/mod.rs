@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -200,7 +201,7 @@ impl AudioBackend {
 			let next_chunk_index = self.current_song.as_ref().unwrap().play_position / CHUNK_SIZE + 1;
 			match chunks.get(next_chunk_index) {
 				Some(chunk) => {
-					match self.source_chunk_sender.try_send((*chunk).clone()) {
+					match self.source_chunk_sender.try_send(chunk.clone()) {
 						Ok(_) => {
 							// we can use CHUNK_SIZE here, as play_position will be set to 0 if this is last_chunk and length != CHUNK_SIZE
 							self.current_song.as_mut().unwrap().play_position += CHUNK_SIZE;
@@ -355,7 +356,7 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 							sample_rate,
 							start_position: next_start_position,
 							length: CHUNK_SIZE,
-							data: data.clone(),
+							data: Arc::from(data.clone()),
 							song_id: song.get_id(),
 							last_chunk: converted.peek().is_none(),
 						};
@@ -373,7 +374,7 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 						sample_rate,
 						start_position: next_start_position,
 						length: index - next_start_position,
-						data: data.clone(),
+						data: Arc::from(data),
 						song_id: song.get_id(),
 						last_chunk: true,
 					};
