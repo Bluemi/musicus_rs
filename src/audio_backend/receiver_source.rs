@@ -31,10 +31,10 @@ impl ReceiverSource {
         match self.chunk_receiver.try_recv() {
             Ok(chunk) => {
                 // check for new song
-                if self.current_chunk.as_ref().map(|c| c.song.get_id() != chunk.song.get_id()).unwrap_or(true) {
+                if self.current_chunk.as_ref().map(|c| c.song_id != chunk.song_id).unwrap_or(true) {
                     let _ = self.update_sender.send(
                         AudioBackendCommand::Update(AudioUpdate::SongStarts(
-                            chunk.song.get_id()
+                            chunk.song_id
                         ))
                     );
                 } else {
@@ -42,7 +42,7 @@ impl ReceiverSource {
                     let _ = self.update_sender.send(
                         AudioBackendCommand::Update(AudioUpdate::Playing(
                             PlayingUpdate {
-                                song_id: chunk.song.get_id(),
+                                song_id: chunk.song_id,
                                 samples_played: chunk.start_position,
                             }
                         ))

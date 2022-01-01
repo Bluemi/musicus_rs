@@ -288,7 +288,7 @@ impl AudioBackend {
 	fn handle_load_info(&mut self, load_info: LoadInfo) {
 		match load_info {
 			LoadInfo::Chunk(chunk) => {
-				self.songs.entry(chunk.song.get_id()).or_insert(Vec::new()).push(chunk);
+				self.songs.entry(chunk.song_id).or_insert(Vec::new()).push(chunk);
 				self.send_next_chunks();
 			}
 			LoadInfo::Duration(song_id, duration) => {
@@ -356,7 +356,7 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 							start_position: next_start_position,
 							length: CHUNK_SIZE,
 							data: data.clone(),
-							song: song.clone(),
+							song_id: song.get_id(),
 							last_chunk: converted.peek().is_none(),
 						};
 						next_start_position = index + 1;
@@ -374,7 +374,7 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 						start_position: next_start_position,
 						length: index - next_start_position,
 						data: data.clone(),
-						song: song.clone(),
+						song_id: song.get_id(),
 						last_chunk: true,
 					};
 					if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {

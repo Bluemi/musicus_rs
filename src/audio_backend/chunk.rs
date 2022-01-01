@@ -1,5 +1,5 @@
 use std::time::Duration;
-use crate::song::Song;
+use crate::song::SongID;
 
 pub const CHUNK_SIZE: usize = 1024;
 
@@ -12,7 +12,7 @@ pub struct SamplesChunk {
     /// The number of samples in this chunk. A sample is one f32 value.
     pub length: usize,
     pub data: Box<[f32; CHUNK_SIZE]>, // TODO: use Arc
-    pub song: Song, // TODO: try to replace with song_id
+    pub song_id: SongID, // TODO: try to replace with song_id
     pub last_chunk: bool,
 }
 
