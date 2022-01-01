@@ -29,7 +29,7 @@ pub struct AudioBackend {
 	/// sender to source
 	source_chunk_sender: Sender<SamplesChunk>,
 
-	songs: HashMap<SongID, AudioSong>, // TODO: Try to save song not in chunks but extra
+	songs: HashMap<SongID, AudioSong>,
 	current_song: Option<CurrentSongState>,
 	next_song: Option<Song>,
 	volume: f32,
