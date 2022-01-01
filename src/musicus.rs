@@ -226,8 +226,12 @@ impl Musicus {
 						self.debug_manager.add_entry_color("Got playing update, but playing song info is not set.".to_string(), RenderColor::Red, RenderColor::Black);
 					}
 				}
-				AudioInfo::FailedOpen(song, e) => {
-					self.debug_manager.add_entry_color(format!("Failed to open: {:?} {:?}\n", song.get_path(), e), RenderColor::Red, RenderColor::Black);
+				AudioInfo::FailedOpen(song_id, e) => {
+					self.debug_manager.add_entry_color(
+						format!("Failed to open \"{}\": {:?}\n", self.song_buffer.get(song_id).map(|s| s.get_title()).unwrap_or("<unknown song>"), e),
+					    RenderColor::Red,
+						RenderColor::Black
+					);
 				}
 				AudioInfo::SongStarts(song_id) => {
 					let song = self.song_buffer.get(song_id).unwrap();

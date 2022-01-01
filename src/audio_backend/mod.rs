@@ -100,7 +100,7 @@ pub enum SeekDirection {
 pub enum AudioInfo {
 	Playing(SongID, Duration), // playing song, play duration
 	SongStarts(SongID),
-	FailedOpen(Song, OpenError),
+	FailedOpen(SongID, OpenError),
 	SongDuration(SongID, Duration),
 	// GarbageCollected(PathBuf), // TODO
 }
@@ -126,7 +126,7 @@ pub enum AudioBackendCommand {
 pub enum LoadInfo {
 	Chunk(SamplesChunk),
 	Duration(SongID, Duration),
-	Err(Song, OpenError),
+	Err(SongID, OpenError),
 }
 
 #[derive(Debug)]
@@ -414,10 +414,10 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 					}
 				}
 			} else {
-				let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song, OpenError::NotDecodable)));
+				let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song.get_id(), OpenError::NotDecodable)));
 			}
 		} else {
-			let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song, OpenError::FileNotFound)));
+			let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song.get_id(), OpenError::FileNotFound)));
 		}
 	}
 }
