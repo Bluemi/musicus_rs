@@ -436,6 +436,11 @@ impl Musicus {
 		if let Some(current_song) = &self.playing_song_info {
 			self.window.mv(self.window.get_max_y() - 1, 0);
 			self.window.hline(' ', self.window.get_max_x());
+			let playing_str = if self.play_state.playing {
+				">"
+			} else {
+				"|"
+			};
 			let play_mode_str = match self.play_state.mode {
 				PlayMode::Normal => " ",
 				PlayMode::Shuffle => "S",
@@ -444,7 +449,8 @@ impl Musicus {
 				self.window.get_max_y()-1,
 				1,
 				format!(
-					"{}{} {}  {} / {}  vol: {}%",
+					"{} {}{} {}  {} / {}  vol: {}%",
+					playing_str,
 					play_mode_str,
 					if self.follow { "F" } else { " " },
 					current_song.title,
