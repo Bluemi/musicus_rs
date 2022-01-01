@@ -433,33 +433,43 @@ impl Musicus {
 
 	fn render_play_state(&mut self) {
 		self.set_color(RenderColor::Black, RenderColor::Cyan);
-		if let Some(current_song) = &self.playing_song_info {
-			self.window.mv(self.window.get_max_y() - 1, 0);
-			self.window.hline(' ', self.window.get_max_x());
-			let playing_str = if self.play_state.playing {
-				">"
-			} else {
-				"|"
-			};
-			let play_mode_str = match self.play_state.mode {
-				PlayMode::Normal => " ",
-				PlayMode::Shuffle => "S",
-			};
-			self.window.mvaddstr(
-				self.window.get_max_y()-1,
-				1,
+		self.window.mv(self.window.get_max_y() - 1, 0);
+		self.window.hline(' ', self.window.get_max_x());
+		let playing_str = if self.play_state.playing { ">" } else { "|" };
+		let play_mode_str = match self.play_state.mode {
+			PlayMode::Normal => " ",
+			PlayMode::Shuffle => "S",
+		};
+		let follow_str = if self.follow { "F" } else { " " };
+
+		let play_state_str = match &self.playing_song_info {
+			None => {
+				format!(
+					"{} {}{}          0:00 / 0:00 vol: {}%",
+					playing_str,
+					play_mode_str,
+					follow_str,
+					self.volume,
+				)
+			}
+			Some(current_song) => {
 				format!(
 					"{} {}{} {}  {} / {}  vol: {}%",
 					playing_str,
 					play_mode_str,
-					if self.follow { "F" } else { " " },
+					follow_str,
 					current_song.title,
 					format_duration(current_song.play_position),
 					format_duration(current_song.total_duration),
 					self.volume,
-				),
-			);
-		}
+				)
+			}
+		};
+		self.window.mvaddstr(
+			self.window.get_max_y()-1,
+			1,
+			play_state_str,
+		);
 	}
 
 	fn set_color(&mut self, foreground: RenderColor, background: RenderColor) {
