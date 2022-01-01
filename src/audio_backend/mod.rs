@@ -355,9 +355,9 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 			if let Ok(decoder) = Decoder::new(BufReader::new(file)) {
 				let channels = decoder.channels();
 				let sample_rate = decoder.sample_rate();
-				let duration = decoder.total_duration();
+				let total_duration = decoder.total_duration();
 
-				if let Some(duration) = duration {
+				if let Some(duration) = total_duration {
 					let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
 				}
 
@@ -372,6 +372,7 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 
 					// send chunk
 					if chunk_index == CHUNK_SIZE-1 {
+						let last_chunk = converted.peek().is_none();
 						let chunk = SamplesChunk {
 							channels,
 							sample_rate,
@@ -379,8 +380,13 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 							length: CHUNK_SIZE,
 							data: Arc::from(data.clone()),
 							song_id: song.get_id(),
-							last_chunk: converted.peek().is_none(),
+							last_chunk,
 						};
+						// calculate duration, if not already done
+						if last_chunk && total_duration.is_none() {
+							let duration = position_to_duration(next_start_position + CHUNK_SIZE, sample_rate, channels);
+							let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
+						}
 						next_start_position = index + 1;
 						if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {
 							break 'l
@@ -399,6 +405,10 @@ fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendC
 						song_id: song.get_id(),
 						last_chunk: true,
 					};
+					if total_duration.is_none() {
+						let duration = position_to_duration(next_start_position + CHUNK_SIZE, sample_rate, channels);
+						let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
+					}
 					if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {
 						break 'l
 					}
