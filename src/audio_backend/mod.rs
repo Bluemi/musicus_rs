@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crossbeam::{bounded, Receiver, Sender, unbounded};
+use crossbeam::{bounded, Receiver, Sender};
 use rodio::{cpal, Decoder, DeviceTrait, Sink, Source, OutputStream};
 use rodio::cpal::traits::HostTrait;
 
@@ -24,10 +24,10 @@ pub struct AudioBackend {
 
 	/// sender for info to musicus
     info_sender: Sender<AudioInfo>,
-	/// sender to send the next tasks to loader thread
-	load_task_sender: Sender<Song>,
 	/// sender to source
 	source_chunk_sender: Sender<SamplesChunk>,
+	/// sender to audio backend, used to create loader threads
+	audio_backend_sender: Sender<AudioBackendCommand>,
 
 	songs: HashMap<SongID, AudioSong>,
 	current_song: Option<CurrentSongState>,
@@ -144,16 +144,9 @@ impl AudioBackend {
 
 		let sink = Sink::try_new(&stream_handle).unwrap();
 
-		// loader thread
-		let (load_task_sender, load_task_receiver) = unbounded();
-		let abs = audio_backend_sender.clone();
-		thread::Builder::new().name("loader".to_string()).spawn(move || {
-			load_chunks(load_task_receiver, abs);
-		}).expect("Failed to spawn loader thread");
-
 		// receiver source
 		let (source_chunk_sender, chunk_receiver) = bounded(CHUNK_BUFFER_SIZE);
-		let receiver_source = ReceiverSource::new(chunk_receiver, audio_backend_sender);
+		let receiver_source = ReceiverSource::new(chunk_receiver, audio_backend_sender.clone());
 
 		sink.append(receiver_source);
 		sink.play();
@@ -164,8 +157,8 @@ impl AudioBackend {
 			_stream: stream,
 
 			info_sender,
-			load_task_sender,
 			source_chunk_sender,
+			audio_backend_sender,
 
 			current_song: None,
 			next_song: None,
@@ -257,7 +250,10 @@ impl AudioBackend {
 	fn load(&mut self, song: Song) {
 		if !self.songs.contains_key(&song.get_id()) {
 			self.songs.insert(song.get_id(), AudioSong::new());
-			let _ = self.load_task_sender.send(song);
+			let abs = self.audio_backend_sender.clone();
+			thread::Builder::new().name("loader".to_string()).spawn(move || {
+				load_chunks(song, abs.clone());
+			}).expect("Failed to spawn loader thread");
 		}
 	}
 
@@ -347,78 +343,76 @@ impl AudioBackend {
 }
 
 /**
- * Loads chunks of songs, initiated through the load_receiver channel
+ * Loads chunks of the given song
  */
-fn load_chunks(task_receiver: Receiver<Song>, chunk_sender: Sender<AudioBackendCommand>) {
-	'l: for song in task_receiver.iter() {
-		if let Ok(file) = File::open(&song.get_path()) {
-			if let Ok(decoder) = Decoder::new(BufReader::new(file)) {
-				let channels = decoder.channels();
-				let sample_rate = decoder.sample_rate();
-				let total_duration = decoder.total_duration();
+fn load_chunks(song: Song, chunk_sender: Sender<AudioBackendCommand>) {
+	if let Ok(file) = File::open(&song.get_path()) {
+		if let Ok(decoder) = Decoder::new(BufReader::new(file)) {
+			let channels = decoder.channels();
+			let sample_rate = decoder.sample_rate();
+			let total_duration = decoder.total_duration();
 
-				if let Some(duration) = total_duration {
-					let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
-				}
+			if let Some(duration) = total_duration {
+				let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
+			}
 
-				let mut data = Box::new([0.0f32; CHUNK_SIZE]);
-				let mut index = 0;
-				let mut next_start_position = 0;
-				let mut converted = decoder.convert_samples().peekable();
+			let mut data = Box::new([0.0f32; CHUNK_SIZE]);
+			let mut index = 0;
+			let mut next_start_position = 0;
+			let mut converted = decoder.convert_samples().peekable();
 
-				while let Some(sample) = converted.next() {
-					let chunk_index = index % CHUNK_SIZE;
-					data[chunk_index] = sample;
-
-					// send chunk
-					if chunk_index == CHUNK_SIZE-1 {
-						let last_chunk = converted.peek().is_none();
-						let chunk = SamplesChunk {
-							channels,
-							sample_rate,
-							start_position: next_start_position,
-							length: CHUNK_SIZE,
-							data: Arc::from(data.clone()),
-							song_id: song.get_id(),
-							last_chunk,
-						};
-						// calculate duration, if not already done
-						if last_chunk && total_duration.is_none() {
-							let duration = position_to_duration(next_start_position + CHUNK_SIZE, sample_rate, channels);
-							let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
-						}
-						next_start_position = index + 1;
-						if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {
-							break 'l
-						}
-					}
-					index += 1;
-				}
+			while let Some(sample) = converted.next() {
 				let chunk_index = index % CHUNK_SIZE;
-				if chunk_index != 0 {
+				data[chunk_index] = sample;
+
+				// send chunk
+				if chunk_index == CHUNK_SIZE-1 {
+					let last_chunk = converted.peek().is_none();
 					let chunk = SamplesChunk {
 						channels,
 						sample_rate,
 						start_position: next_start_position,
-						length: index - next_start_position,
-						data: Arc::from(data),
+						length: CHUNK_SIZE,
+						data: Arc::from(data.clone()),
 						song_id: song.get_id(),
-						last_chunk: true,
+						last_chunk,
 					};
-					if total_duration.is_none() {
+					// calculate duration, if not already done
+					if last_chunk && total_duration.is_none() {
 						let duration = position_to_duration(next_start_position + CHUNK_SIZE, sample_rate, channels);
 						let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
 					}
+					next_start_position = index + 1;
 					if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {
-						break 'l
+						return;
 					}
 				}
-			} else {
-				let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song.get_id(), OpenError::NotDecodable)));
+				index += 1;
+			}
+			let chunk_index = index % CHUNK_SIZE;
+			if chunk_index != 0 {
+				let chunk = SamplesChunk {
+					channels,
+					sample_rate,
+					start_position: next_start_position,
+					length: index - next_start_position,
+					data: Arc::from(data),
+					song_id: song.get_id(),
+					last_chunk: true,
+				};
+				if total_duration.is_none() {
+					let duration = position_to_duration(next_start_position + CHUNK_SIZE, sample_rate, channels);
+					let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Duration(song.get_id(), duration)));
+				}
+				if chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Chunk(chunk))).is_err() {
+					return;
+				}
 			}
 		} else {
-			let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song.get_id(), OpenError::FileNotFound)));
+			let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song.get_id(), OpenError::NotDecodable)));
 		}
+	} else {
+		let _ = chunk_sender.send(AudioBackendCommand::LoadInfo(LoadInfo::Err(song.get_id(), OpenError::FileNotFound)));
 	}
 }
 
