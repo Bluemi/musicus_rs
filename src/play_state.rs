@@ -46,9 +46,6 @@ impl PlayState {
 		self.define_next_song(playlist_manager).map(|_| ())
 	}
 
-	/**
-	 * Gets the current play position
-	 */
 	pub fn get_current_play_position(&self) -> Option<PlayPosition> {
 		self.current_song
 	}

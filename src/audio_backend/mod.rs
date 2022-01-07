@@ -264,6 +264,7 @@ impl AudioBackend {
 			play_position: 0
 		});
 		self.send_next_chunks();
+		self.sink.play();
 	}
 
 	fn queue(&mut self, song: Song) {
