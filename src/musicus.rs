@@ -37,6 +37,7 @@ pub struct Musicus {
 	playing_song_info: Option<SongInfo>,
 	volume: i32,
 	follow: bool,
+	screen_dimensions: (i32, i32), // height, width
 }
 
 struct SongInfo {
@@ -94,6 +95,7 @@ impl Musicus {
 
 		// load playlists
 		let playlists = load_playlists();
+		let screen_dimensions = window.get_max_yx();
 
 		Musicus {
 			command_sender: audio_backend_sender,
@@ -110,6 +112,7 @@ impl Musicus {
 			playing_song_info: None,
 			volume: cache.volume,
 			follow: cache.follow,
+			screen_dimensions,
 		}
 	}
 
@@ -267,6 +270,11 @@ impl Musicus {
 
 	fn handle_input(&mut self, running: &mut bool) -> bool {
 		let mut got_valid_input = false;
+
+		if self.screen_dimensions != self.window.get_max_yx() {
+			self.screen_dimensions = self.window.get_max_yx();
+			got_valid_input = true;
+		}
 		if let Some(input) = self.window.getch() {
 			match input {
 				Input::Character(c) => {
