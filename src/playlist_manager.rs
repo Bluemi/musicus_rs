@@ -14,6 +14,7 @@ use std::collections::HashMap;
 
 pub struct PlaylistManager {
 	pub shown_playlist_index: usize,
+	playlist_scroll_position: usize,
 	pub playlists: Vec<Playlist>,
 	pub view: PlaylistView,
 	scroll_cursor_positions: HashMap<PlaylistID, (usize, usize)>,
@@ -30,6 +31,7 @@ impl PlaylistManager {
 	pub fn new(playlists: Vec<Playlist>, cache: &PlaylistManagerCache) -> PlaylistManager {
 		PlaylistManager {
 			shown_playlist_index: cache.shown_playlist_index,
+			playlist_scroll_position: cache.playlist_scroll_position,
 			playlists,
 			view: cache.view,
 			scroll_cursor_positions: cache.scroll_cursor_positions.clone(),
@@ -39,6 +41,7 @@ impl PlaylistManager {
 	pub fn create_cache(&self) -> PlaylistManagerCache {
 		PlaylistManagerCache {
 			view: self.view,
+			playlist_scroll_position: self.playlist_scroll_position,
 			shown_playlist_index: self.shown_playlist_index,
 			scroll_cursor_positions: self.scroll_cursor_positions.clone(),
 		}
@@ -97,9 +100,8 @@ impl PlaylistManager {
 	pub fn move_down(&mut self, num_rows: usize) {
 		match self.view {
 			PlaylistView::Overview => {
-				if self.shown_playlist_index < self.playlists.len() - 1 {
-					self.shown_playlist_index += 1;
-				}
+				let next_index = (self.shown_playlist_index + 1).min(self.playlists.len().checked_sub(1).unwrap_or(0));
+				self.set_playlist_cursor_position(next_index, num_rows);
 			}
 			PlaylistView::Playlist => {
 				if let Some(playlist_id) = self.get_mut_shown_playlist().map(|p| p.id) {
@@ -113,9 +115,7 @@ impl PlaylistManager {
 	pub fn move_up(&mut self, num_rows: usize) {
 		match self.view {
 			PlaylistView::Overview => {
-				if self.shown_playlist_index > 0 {
-					self.shown_playlist_index -= 1;
-				}
+				self.set_playlist_cursor_position(self.shown_playlist_index.checked_sub(1).unwrap_or(0), num_rows);
 			}
 			PlaylistView::Playlist => {
 				if let Some(playlist_id) = self.get_mut_shown_playlist().map(|p| p.id) {
@@ -140,11 +140,18 @@ impl PlaylistManager {
 		}
 	}
 
+	pub fn set_playlist_cursor_position(&mut self, cursor_position: usize, num_rows: usize) {
+		if cursor_position < self.playlists.len() {
+			self.shown_playlist_index = cursor_position;
+			self.playlist_scroll_position = self.playlist_scroll_position.clamp(cursor_position.checked_sub(num_rows-1).unwrap_or(0), cursor_position);
+		}
+	}
+
 	pub fn get_render_object(&self, play_state: &PlayState, song_buffer: &SongBuffer) -> RenderObject {
 		let mut render_object = RenderObject::new(Alignment::Left);
 
 		// add overview panel
-		let mut overview_panel = RenderPanel::new(0);
+		let mut overview_panel = RenderPanel::new(self.playlist_scroll_position);
 		for (index, playlist) in self.playlists.iter().enumerate() {
 			let (foreground_color, background_color) = if play_state.is_playlist_played(index) {
 				if index == self.shown_playlist_index {

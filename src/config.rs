@@ -36,7 +36,9 @@ pub fn load_playlists() -> Vec<Playlist> {
 	let mut playlists = Vec::new();
 	for entry in get_dir_entries(&playlists_directory) {
 		if entry.is_file {
-			playlists.push(Playlist::from_file(&entry.path));
+			if let Ok(playlist) = Playlist::from_file(&entry.path) {
+				playlists.push(playlist);
+			}
 		}
 	}
 	playlists
@@ -61,6 +63,7 @@ pub struct FileManagerCache {
 pub struct PlaylistManagerCache {
 	pub view: PlaylistView,
 	pub shown_playlist_index: usize,
+	pub playlist_scroll_position: usize,
 	pub scroll_cursor_positions: HashMap<PlaylistID, (usize, usize)>
 }
 
@@ -100,6 +103,7 @@ impl Cache {
 			},
 			playlist_manager_cache: PlaylistManagerCache {
 				view: PlaylistView::Overview,
+				playlist_scroll_position: 0,
 				shown_playlist_index: 0,
 				scroll_cursor_positions: HashMap::new(),
 			},

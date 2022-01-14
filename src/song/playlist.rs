@@ -14,10 +14,10 @@ pub struct Playlist {
 }
 
 impl Playlist {
-	pub fn from_file(path: &Path) -> Playlist {
+	pub fn from_file(path: &Path) -> Result<Playlist, serde_json::Error> {
 		let file = File::open(path).unwrap();
 		let reader = BufReader::new(file);
-		serde_json::from_reader(reader).unwrap()
+		serde_json::from_reader(reader)
 	}
 
 	pub fn dump_to_file(&self, path: &Path) {
