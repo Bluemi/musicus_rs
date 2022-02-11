@@ -255,11 +255,6 @@ impl Musicus {
 						has_to_render = true;
 					}
 				}
-				/* // TODO
-				AudioInfo::GarbageCollected(path_buf) => {
-					self.debug_manager.add_entry(format!("song garbage collected: {:?}", path_buf));
-				}
-				 */
 			}
 		}
 		if should_follow && self.follow {

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
@@ -29,20 +28,21 @@ pub struct AudioBackend {
 	/// sender to audio backend, used to create loader threads
 	audio_backend_sender: Sender<AudioBackendCommand>,
 
-	songs: HashMap<SongID, AudioSong>,
 	current_song: Option<CurrentSongState>,
-	next_song: Option<Song>,
+	next_song: Option<(Song, AudioSong)>,
 	volume: f32,
 }
 
 struct AudioSong {
+	song_id: SongID,
 	chunks: Vec<SamplesChunk>,
 	sample_rate_and_channels: Option<(u32, u16)>,
 }
 
 impl AudioSong {
-	fn new() -> AudioSong {
+	fn new(song_id: SongID) -> AudioSong {
 		AudioSong {
+			song_id,
 			chunks: Vec::new(),
 			sample_rate_and_channels: None,
 		}
@@ -50,8 +50,8 @@ impl AudioSong {
 }
 
 struct CurrentSongState {
-	song: Song,
 	play_position: usize, // the number of samples already sent to source. A sample is one f32 value.
+	audio_song: AudioSong,
 }
 
 pub enum AudioCommand {
@@ -102,7 +102,6 @@ pub enum AudioInfo {
 	SongStarts(SongID),
 	FailedOpen(SongID, OpenError),
 	SongDuration(SongID, Duration),
-	// GarbageCollected(PathBuf), // TODO
 }
 
 #[derive(Debug)]
@@ -162,7 +161,6 @@ impl AudioBackend {
 
 			current_song: None,
 			next_song: None,
-			songs: HashMap::new(),
 			volume,
 		}
 	}
@@ -197,19 +195,18 @@ impl AudioBackend {
 	/// Tries to send the next chunks to source
 	fn send_next_chunks(&mut self) { // TODO: why is this called so often?
 		loop {
-			let songs = &self.songs;
-			let audio_song = match self.current_song.as_ref().and_then(|x| songs.get(&x.song.get_id())) {
+			let current_song = match &mut self.current_song {
 				Some(x) => x,
 				None => break,
 			};
 
-			let next_chunk_index = self.current_song.as_ref().unwrap().play_position / CHUNK_SIZE + 1;
-			match audio_song.chunks.get(next_chunk_index) {
+			let next_chunk_index = current_song.play_position / CHUNK_SIZE + 1;
+			match current_song.audio_song.chunks.get(next_chunk_index) {
 				Some(chunk) => {
 					match self.source_chunk_sender.try_send(chunk.clone()) {
 						Ok(_) => {
 							// we can use CHUNK_SIZE here, as play_position will be set to 0 if this is last_chunk and length != CHUNK_SIZE
-							self.current_song.as_mut().unwrap().play_position += CHUNK_SIZE;
+							current_song.play_position += CHUNK_SIZE;
 						}
 						Err(crossbeam::TrySendError::Full(_)) => {
 							break; // channel is full -> stop to try sending chunks
@@ -225,7 +222,7 @@ impl AudioBackend {
 				}
 				None => {
 					// is last chunk in chunks? This would mean we are already past the last chunk (can happen by seeking)
-					if audio_song.chunks.last().map(|c| c.last_chunk).unwrap_or(false) {
+					if current_song.audio_song.chunks.last().map(|c| c.last_chunk).unwrap_or(false) {
 						Self::play_next_song(&mut self.current_song, &mut self.next_song);
 					} else {
 						// we have to wait for further chunks
@@ -236,20 +233,34 @@ impl AudioBackend {
 		}
 	}
 
-	fn play_next_song(current_song: &mut Option<CurrentSongState>, next_song: &mut Option<Song>) {
+	fn play_next_song(current_song: &mut Option<CurrentSongState>, next_song: &mut Option<(Song, AudioSong)>) {
 		if let Some(next_song) = next_song.take() {
 			*current_song = Some(CurrentSongState {
-				song: next_song,
-				play_position: 0
+				play_position: 0,
+				audio_song: next_song.1
 			});
 		} else {
 			*current_song = None;
 		}
 	}
 
+	// TODO: This is probably not the best implementation
+	fn is_song_loading(&self, song_id: SongID) -> bool {
+		if let Some(current_song) = &self.current_song {
+			if current_song.audio_song.song_id == song_id {
+				return true;
+			}
+		}
+		if let Some(next_audio_song) = &self.next_song {
+			if next_audio_song.1.song_id == song_id {
+				return true;
+			}
+		}
+		false
+	}
+
 	fn load(&mut self, song: Song) {
-		if !self.songs.contains_key(&song.get_id()) {
-			self.songs.insert(song.get_id(), AudioSong::new());
+		if !self.is_song_loading(song.get_id()) {
 			let abs = self.audio_backend_sender.clone();
 			thread::Builder::new().name("loader".to_string()).spawn(move || {
 				load_chunks(song, abs.clone());
@@ -260,16 +271,16 @@ impl AudioBackend {
 	fn play(&mut self, song: Song) {
 		self.load(song.clone());
 		self.current_song = Some(CurrentSongState {
-			song,
-			play_position: 0
+			audio_song: AudioSong::new(song.get_id()),
+			play_position: 0,
 		});
 		self.send_next_chunks();
 		self.sink.play();
 	}
 
 	fn queue(&mut self, song: Song) {
-		self.load(song.clone());
-		self.next_song = Some(song);
+		self.next_song = Some((song.clone(), AudioSong::new(song.get_id())));
+		self.load(song);
 	}
 
 	fn set_volume(&mut self, volume: f32) {
@@ -277,23 +288,25 @@ impl AudioBackend {
 		self.volume = volume;
 	}
 
+	fn get_audio_song<'a>(current_song: Option<&'a mut CurrentSongState>, next_song: Option<&'a mut (Song, AudioSong)>, song_id: SongID) -> Option<&'a mut AudioSong> {
+		current_song.map(|ca| &mut ca.audio_song).filter(|audio_song| audio_song.song_id == song_id)
+		.or_else(|| next_song.map(|na| &mut na.1).filter(|audio_song| audio_song.song_id == song_id))
+	}
+
 	fn handle_update(&mut self, update: AudioUpdate) {
 		match update {
 			AudioUpdate::Playing(playing_update) => {
-				let audio_song = &self.songs.get(&playing_update.song_id).unwrap(); // use first chunk to get sample rate and channels
-				if let Some((sample_rate, channels)) = audio_song.sample_rate_and_channels {
-					let duration = position_to_duration(playing_update.samples_played, sample_rate, channels);
-					self.info_sender.send(AudioInfo::Playing(playing_update.song_id, duration)).unwrap();
-					self.send_next_chunks();
+				let audio_song = Self::get_audio_song(self.current_song.as_mut(), self.next_song.as_mut(), playing_update.song_id);
+				if let Some(audio_song) = audio_song {
+					if let Some((sample_rate, channels)) = audio_song.sample_rate_and_channels {
+						let duration = position_to_duration(playing_update.samples_played, sample_rate, channels);
+						self.info_sender.send(AudioInfo::Playing(playing_update.song_id, duration)).unwrap();
+						self.send_next_chunks();
+					}
 				}
 			}
 			AudioUpdate::SongStarts(song_id) => {
 				self.info_sender.send(AudioInfo::SongStarts(song_id)).unwrap();
-				/* TODO: reimplement garbage collection
-				if let Some(path_buf) = self.audio_buffer.check_garbage_collect() {
-					self.info_sender.send(AudioInfo::GarbageCollected(path_buf)).unwrap();
-				}
-				 */
 			}
 		}
 	}
@@ -301,7 +314,7 @@ impl AudioBackend {
 	fn handle_load_info(&mut self, load_info: LoadInfo) {
 		match load_info {
 			LoadInfo::Chunk(chunk) => {
-				if let Some(audio_song) = self.songs.get_mut(&chunk.song_id) { // ignore chunks of songs that are not in self.songs (probably already garbage collected)
+				if let Some(audio_song) = Self::get_audio_song(self.current_song.as_mut(), self.next_song.as_mut(), chunk.song_id) {
 					if audio_song.sample_rate_and_channels.is_none() {
 						audio_song.sample_rate_and_channels = Some((chunk.sample_rate, chunk.channels));
 					}
@@ -320,7 +333,7 @@ impl AudioBackend {
 
 	fn seek(&mut self, seek_command: SeekCommand) {
 		if let Some(current_song) = &mut self.current_song {
-			if let Some((sample_rate, channels)) = self.songs.get(&current_song.song.get_id()).unwrap().sample_rate_and_channels { // ignore if sample rate/channels are unknown until yet
+			if let Some((sample_rate, channels)) = current_song.audio_song.sample_rate_and_channels {
 				let offset = duration_to_position(&seek_command.duration, sample_rate, channels);
 				match seek_command.direction {
 					SeekDirection::Forward => {
