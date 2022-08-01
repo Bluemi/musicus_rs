@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
@@ -10,6 +11,7 @@ use rodio::cpal::traits::HostTrait;
 
 use crate::audio_backend::chunk::{CHUNK_SIZE, duration_to_position, position_to_duration, SamplesChunk};
 use crate::audio_backend::receiver_source::ReceiverSource;
+use crate::musicus::log;
 use crate::song::{Song, SongID};
 
 mod receiver_source;
@@ -57,14 +59,26 @@ struct CurrentSongState {
 pub enum AudioCommand {
 	Play(Song),
 	Queue(Song),
-	Load(Song),
 	Pause,
     Unpause,
 	Seek(SeekCommand),
     SetVolume(f32),
 }
 
-#[derive(Copy, Clone)]
+impl Debug for AudioCommand {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		match self {
+			AudioCommand::Play(song) => f.debug_struct("AudioCommand::Play").field("song", &song.get_id()).finish(),
+			AudioCommand::Queue(song) => f.debug_struct("AudioCommand::Queue").field("song", &song.get_id()).finish(),
+			AudioCommand::Pause => f.debug_struct("AudioCommand::Pause").finish(),
+			AudioCommand::Unpause => f.debug_struct("AudioCommand::Unpause").finish(),
+			AudioCommand::Seek(_) => f.debug_struct("AudioCommand::Seek").finish(),
+			AudioCommand::SetVolume(volume) => f.debug_struct("AudioCommand::SetVolume").field("volume", volume).finish(),
+		}
+	}
+}
+
+#[derive(Copy, Clone, Debug)]
 pub struct SeekCommand {
 	pub duration: Duration,
 	pub direction: SeekDirection,
@@ -90,7 +104,7 @@ impl SeekCommand {
 	}
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum SeekDirection {
 	Forward,
 	Backward,
@@ -122,6 +136,8 @@ pub enum AudioBackendCommand {
 	LoadInfo(LoadInfo), // chunk from loader
 }
 
+
+#[derive(Debug)]
 pub enum LoadInfo {
 	Chunk(SamplesChunk),
 	Duration(SongID, Duration),
@@ -181,10 +197,12 @@ impl AudioBackend {
 	}
 
 	fn handle_command(&mut self, command: AudioCommand) {
+		if !matches!(command, AudioCommand::Seek(_)) {
+			log(&format!("{:?}\n", command));
+		}
 		match command {
 			AudioCommand::Play(song) => self.play(song),
 			AudioCommand::Queue(song) => self.queue(song),
-			AudioCommand::Load(song) => self.load(song),
 			AudioCommand::Pause => self.pause(),
 			AudioCommand::Unpause => self.unpause(),
 			AudioCommand::Seek(seek_command) => self.seek(seek_command),
@@ -265,6 +283,8 @@ impl AudioBackend {
 			thread::Builder::new().name("loader".to_string()).spawn(move || {
 				load_chunks(song, abs.clone());
 			}).expect("Failed to spawn loader thread");
+		} else {
+			log(&format!("Song {} is already loading\n", song.get_id()));
 		}
 	}
 
@@ -279,11 +299,25 @@ impl AudioBackend {
 	}
 
 	fn queue(&mut self, song: Song) {
+		// log(&format!("queuing {:?}\n", &song.get_title()));
+		// self.log_state();
+		self.load(song.clone());
 		self.next_song = Some((song.clone(), AudioSong::new(song.get_id())));
-		self.load(song);
+	}
+
+	fn log_state(&self) {
+		log(&format!(
+			"update:\n\tcurrent song {}: {}/{} chunks\n\tnext song {}: {} chunks\n",
+			self.current_song.as_ref().map_or(String::from("None"), |s| s.audio_song.song_id.to_string()),
+			self.current_song.as_ref().map_or(String::from("None"), |s| (s.play_position / CHUNK_SIZE).to_string()),
+			self.current_song.as_ref().map_or(String::from("None"), |s| s.audio_song.chunks.len().to_string()),
+			self.next_song.as_ref().map_or(String::from("None"), |s| s.0.get_id().to_string()),
+			self.next_song.as_ref().map_or(String::from("None"), |s| s.1.chunks.len().to_string()),
+		));
 	}
 
 	fn set_volume(&mut self, volume: f32) {
+		self.log_state();
 		self.sink.set_volume(volume);
 		self.volume = volume;
 	}
@@ -320,6 +354,8 @@ impl AudioBackend {
 					}
 					audio_song.chunks.push(chunk);
 					self.send_next_chunks();
+				} else {
+					log(&format!("discard chunk for song {}\n", chunk.song_id));
 				}
 			}
 			LoadInfo::Duration(song_id, duration) => {
@@ -360,6 +396,7 @@ impl AudioBackend {
  * Loads chunks of the given song
  */
 fn load_chunks(song: Song, chunk_sender: Sender<AudioBackendCommand>) {
+	log(&format!("Loading chunks for {}\n", song.get_id()));
 	if let Ok(file) = File::open(&song.get_path()) {
 		if let Ok(decoder) = Decoder::new(BufReader::new(file)) {
 			let channels = decoder.channels();

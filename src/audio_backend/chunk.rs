@@ -4,7 +4,7 @@ use crate::song::SongID;
 
 pub const CHUNK_SIZE: usize = 1024;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SamplesChunk {
     pub channels: u16,
     pub sample_rate: u32,

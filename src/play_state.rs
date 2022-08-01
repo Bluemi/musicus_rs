@@ -152,6 +152,13 @@ impl PlayPosition {
 			}
 		}
 	}
+
+	pub fn get_id(&self) -> SongID {
+		match self {
+			PlayPosition::File(song_id) => *song_id,
+			PlayPosition::Playlist(song_id, _, _, _) => *song_id,
+		}
+	}
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]

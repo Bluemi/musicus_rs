@@ -20,7 +20,6 @@ use crate::string_helpers::{cut_str_left, limit_str_right};
 const FILE_BROWSER_OFFSET: i32 = 5;
 const ENTER_CHAR: char = 10 as char;
 const CURSES_TIMEOUT: i32 = 200;
-const QUEUE_OFFSET: Duration = Duration::from_secs(2);
 
 pub struct Musicus {
     command_sender: Sender<AudioBackendCommand>,
@@ -45,7 +44,6 @@ struct SongInfo {
 	play_position: Duration,
 	total_duration: Duration,
 	queued_next: bool,
-	loaded_next: bool,
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
@@ -191,38 +189,21 @@ impl Musicus {
 		let mut should_follow = false;
 		for info in self.info_receiver.try_iter() {
 			match info {
-				AudioInfo::Playing(song_id, play_position) => {
+				AudioInfo::Playing(_song_id, play_position) => {
 					if let Some(playing_song) = &mut self.playing_song_info {
 						playing_song.play_position = play_position;
 
-						// check for load command
-						if !playing_song.loaded_next && matches!(self.play_state.get_current_play_position(), Some(PlayPosition::Playlist(..))) {
-							if let Some(PlayPosition::Playlist(song_id, ..)) = self.play_state.peek_next_song() {
-								let song = self.song_buffer.get(song_id).unwrap();
-								self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Load(song.clone()))).unwrap();
-								self.debug_manager.add_entry(format!("loading \"{}\"", song.get_title()));
-								playing_song.loaded_next = true;
+						// check for queue command
+						if !playing_song.queued_next {
+							if let Ok(()) = self.play_state.play_next_song(&self.playlist_manager) {
+								if let Some(current_song) = self.play_state.current_song {
+									let song = self.song_buffer.get(current_song.get_id()).unwrap();
+									self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))).unwrap();
+									self.debug_manager.add_entry(format!("queuing \"{}\"", song.get_title()));
+									playing_song.queued_next = true;
+								}
 							} else {
 								self.debug_manager.add_error_entry("failed to peek next song".to_string());
-							}
-						}
-
-						// check for queue command
-						if let Some(total_duration) = self.song_buffer.get(song_id).unwrap().get_total_duration() {
-							let duration_left = total_duration.checked_sub(play_position).unwrap_or_else(|| Duration::new(0, 0));
-
-							if !playing_song.queued_next && duration_left < QUEUE_OFFSET {
-								if let Some(PlayPosition::Playlist(song_id, ..)) = self.play_state.peek_next_song() {
-									let song = self.song_buffer.get(song_id).unwrap();
-									self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))).unwrap();
-									if let Err(msg) = self.play_state.play_next_song(&self.playlist_manager) {
-										self.debug_manager.add_error_entry(format!("failed to start next song: {}", msg));
-									}
-									self.debug_manager.add_entry(format!("queueing \"{}\"", song.get_title()));
-									playing_song.queued_next = true;
-								} else {
-									self.debug_manager.add_error_entry("no next song to queue".to_string());
-								}
 							}
 						}
 					} else {
@@ -243,7 +224,6 @@ impl Musicus {
 						play_position: Duration::new(0, 0),
 						total_duration: song.get_total_duration().unwrap_or(Duration::new(0, 0)), // TODO: fix; SongInfo.total_duration should be Option
 						queued_next: false,
-						loaded_next: false,
 					});
 					has_to_render = true;
 					self.debug_manager.add_entry(format!("start song \"{}\"", song.get_title()));
@@ -304,7 +284,7 @@ impl Musicus {
 								_ => {}
 							};
 							if let Some(playing_song) = &mut self.playing_song_info {
-								playing_song.loaded_next = false;
+								playing_song.queued_next = false;
 							};
 						},
 						('f', _) => self.follow = !self.follow,
