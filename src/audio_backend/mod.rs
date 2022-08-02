@@ -197,9 +197,6 @@ impl AudioBackend {
 	}
 
 	fn handle_command(&mut self, command: AudioCommand) {
-		if !matches!(command, AudioCommand::Seek(_)) {
-			log(&format!("{:?}\n", command));
-		}
 		match command {
 			AudioCommand::Play(song) => self.play(song),
 			AudioCommand::Queue(song) => self.queue(song),
@@ -217,6 +214,7 @@ impl AudioBackend {
 				Some(x) => x,
 				None => break,
 			};
+
 
 			let next_chunk_index = current_song.play_position / CHUNK_SIZE + 1;
 			match current_song.audio_song.chunks.get(next_chunk_index) {
@@ -283,8 +281,6 @@ impl AudioBackend {
 			thread::Builder::new().name("loader".to_string()).spawn(move || {
 				load_chunks(song, abs.clone());
 			}).expect("Failed to spawn loader thread");
-		} else {
-			log(&format!("Song {} is already loading\n", song.get_id()));
 		}
 	}
 
@@ -299,15 +295,14 @@ impl AudioBackend {
 	}
 
 	fn queue(&mut self, song: Song) {
-		// log(&format!("queuing {:?}\n", &song.get_title()));
-		// self.log_state();
 		self.load(song.clone());
 		self.next_song = Some((song.clone(), AudioSong::new(song.get_id())));
 	}
 
+	#[allow(unused)]
 	fn log_state(&self) {
 		log(&format!(
-			"update:\n\tcurrent song {}: {}/{} chunks\n\tnext song {}: {} chunks\n",
+			"update:\n\tcurrent song {}: {}/{} chunks\n\tnext song {}: {} chunks\n\tsend_next_chunk() was called: {}",
 			self.current_song.as_ref().map_or(String::from("None"), |s| s.audio_song.song_id.to_string()),
 			self.current_song.as_ref().map_or(String::from("None"), |s| (s.play_position / CHUNK_SIZE).to_string()),
 			self.current_song.as_ref().map_or(String::from("None"), |s| s.audio_song.chunks.len().to_string()),
@@ -317,7 +312,6 @@ impl AudioBackend {
 	}
 
 	fn set_volume(&mut self, volume: f32) {
-		self.log_state();
 		self.sink.set_volume(volume);
 		self.volume = volume;
 	}
@@ -335,9 +329,9 @@ impl AudioBackend {
 					if let Some((sample_rate, channels)) = audio_song.sample_rate_and_channels {
 						let duration = position_to_duration(playing_update.samples_played, sample_rate, channels);
 						self.info_sender.send(AudioInfo::Playing(playing_update.song_id, duration)).unwrap();
-						self.send_next_chunks();
 					}
 				}
+				self.send_next_chunks();
 			}
 			AudioUpdate::SongStarts(song_id) => {
 				self.info_sender.send(AudioInfo::SongStarts(song_id)).unwrap();
@@ -354,8 +348,6 @@ impl AudioBackend {
 					}
 					audio_song.chunks.push(chunk);
 					self.send_next_chunks();
-				} else {
-					log(&format!("discard chunk for song {}\n", chunk.song_id));
 				}
 			}
 			LoadInfo::Duration(song_id, duration) => {
@@ -396,7 +388,6 @@ impl AudioBackend {
  * Loads chunks of the given song
  */
 fn load_chunks(song: Song, chunk_sender: Sender<AudioBackendCommand>) {
-	log(&format!("Loading chunks for {}\n", song.get_id()));
 	if let Ok(file) = File::open(&song.get_path()) {
 		if let Ok(decoder) = Decoder::new(BufReader::new(file)) {
 			let channels = decoder.channels();

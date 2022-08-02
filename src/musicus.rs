@@ -334,9 +334,11 @@ impl Musicus {
 				direction,
 			}))
 		).unwrap();
+		/*
 		if let Some(playing_song) = &mut self.playing_song_info {
-			playing_song.play_position = (playing_song.play_position + duration).min(playing_song.total_duration)
+			playing_song.play_position = (playing_song.play_position + duration).min(playing_song.total_duration) // TODO: use direction here
 		}
+		 */
 	}
 
 	fn toggle_pause(&mut self) {
@@ -487,4 +489,5 @@ impl Musicus {
 pub fn log(text: &str) {
 	let mut file = OpenOptions::new().write(true).create(true).append(true).open("log.txt").expect("failed to open log file");
 	file.write_all(text.as_bytes()).unwrap();
+	file.write("\n".as_bytes());
 }
