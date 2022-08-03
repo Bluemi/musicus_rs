@@ -1,6 +1,6 @@
 # Musicus
 
-At the moment the main branch is buggy. See [f5fc744](f5fc7445b923963e2d4660aee190f0282b7cf3f3) here for a better version.
+At the moment the main branch is buggy. Checkout [f5fc744](https://github.com/Bluemi/musicus_rs/commit/f5fc7445b923963e2d4660aee190f0282b7cf3f3) for a better version.
 
 Musicus is a terminal music player like [cmus](https://github.com/cmus/cmus),
 written in the [Rust Programming Language](https://www.rust-lang.org/learn).
