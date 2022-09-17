@@ -195,15 +195,14 @@ impl Musicus {
 
 						// check for queue command
 						if !playing_song.queued_next {
-							if let Ok(()) = self.play_state.play_next_song(&self.playlist_manager) {
-								if let Some(current_song) = self.play_state.current_song {
-									let song = self.song_buffer.get(current_song.get_id()).unwrap();
+							match self.play_state.peek_next_song() {
+								Some(song) => {
+									let song = self.song_buffer.get(song.get_id()).unwrap();
 									self.command_sender.send(AudioBackendCommand::Command(AudioCommand::Queue(song.clone()))).unwrap();
 									self.debug_manager.add_entry(format!("queuing \"{}\"", song.get_title()));
 									playing_song.queued_next = true;
-								}
-							} else {
-								self.debug_manager.add_error_entry("failed to peek next song".to_string());
+								},
+								None => self.debug_manager.add_error_entry("failed to peek next song".to_string())
 							}
 						}
 					} else {
@@ -218,6 +217,14 @@ impl Musicus {
 					);
 				}
 				AudioInfo::SongStarts(song_id) => {
+					if let Some(current_song) = self.play_state.current_song {
+						if current_song.get_id() != song_id {
+							match self.play_state.play_next_song(&self.playlist_manager) {
+								Ok(_) => {}
+								Err(_) => self.debug_manager.add_error_entry("failed to start next song".to_string()),
+							}
+						}
+					}
 					let song = self.song_buffer.get(song_id).unwrap();
 					self.playing_song_info = Some(SongInfo {
 						title: song.get_title().to_string(),
