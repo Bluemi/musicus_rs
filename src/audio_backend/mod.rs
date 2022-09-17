@@ -302,7 +302,7 @@ impl AudioBackend {
 	#[allow(unused)]
 	fn log_state(&self) {
 		log(&format!(
-			"update:\n\tcurrent song {}: {}/{} chunks\n\tnext song {}: {} chunks\n\tsend_next_chunk() was called: {}",
+			"update:\n\tcurrent song {}: {}/{} chunks\n\tnext song {}: {} chunks",
 			self.current_song.as_ref().map_or(String::from("None"), |s| s.audio_song.song_id.to_string()),
 			self.current_song.as_ref().map_or(String::from("None"), |s| (s.play_position / CHUNK_SIZE).to_string()),
 			self.current_song.as_ref().map_or(String::from("None"), |s| s.audio_song.chunks.len().to_string()),
