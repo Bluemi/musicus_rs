@@ -317,7 +317,6 @@ impl AudioBackend {
 	}
 
 	fn set_volume(&mut self, volume: f32) {
-		self.log_state();
 		self.sink.set_volume(volume);
 		self.volume = volume;
 	}
