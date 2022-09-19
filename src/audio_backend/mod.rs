@@ -215,7 +215,6 @@ impl AudioBackend {
 				None => break,
 			};
 
-
 			let next_chunk_index = current_song.play_position / CHUNK_SIZE + 1;
 			match current_song.audio_song.chunks.get(next_chunk_index) {
 				Some(chunk) => {
@@ -279,7 +278,7 @@ impl AudioBackend {
 		if !self.is_song_loading(song.get_id()) {
 			let abs = self.audio_backend_sender.clone();
 			thread::Builder::new().name("loader".to_string()).spawn(move || {
-				load_chunks(song, abs.clone());
+				load_chunks(song, abs);
 			}).expect("Failed to spawn loader thread");
 		}
 	}
@@ -290,6 +289,11 @@ impl AudioBackend {
 			audio_song: AudioSong::new(song.get_id()),
 			play_position: 0,
 		});
+		if let Some(next_song) = &mut self.next_song {
+			if next_song.0.get_id() == song.get_id() {
+				std::mem::swap(&mut self.current_song.as_mut().unwrap().audio_song.chunks, &mut next_song.1.chunks);
+			}
+		}
 		self.send_next_chunks();
 		self.sink.play();
 	}
@@ -302,16 +306,18 @@ impl AudioBackend {
 	#[allow(unused)]
 	fn log_state(&self) {
 		log(&format!(
-			"update:\n\tcurrent song {}: {}/{} chunks\n\tnext song {}: {} chunks",
+			"update:\n\tcurrent song {}: {}/{} chunks\n\tnext song {}: {} chunks\n\tplay_position: {}",
 			self.current_song.as_ref().map_or(String::from("None"), |s| s.audio_song.song_id.to_string()),
 			self.current_song.as_ref().map_or(String::from("None"), |s| (s.play_position / CHUNK_SIZE).to_string()),
 			self.current_song.as_ref().map_or(String::from("None"), |s| s.audio_song.chunks.len().to_string()),
 			self.next_song.as_ref().map_or(String::from("None"), |s| s.0.get_id().to_string()),
 			self.next_song.as_ref().map_or(String::from("None"), |s| s.1.chunks.len().to_string()),
+			self.current_song.as_ref().map_or(String::from("None"), |s| s.play_position.to_string()),
 		));
 	}
 
 	fn set_volume(&mut self, volume: f32) {
+		self.log_state();
 		self.sink.set_volume(volume);
 		self.volume = volume;
 	}
@@ -351,10 +357,10 @@ impl AudioBackend {
 				}
 			}
 			LoadInfo::Duration(song_id, duration) => {
-				let _ = self.info_sender.send(AudioInfo::SongDuration(song_id, duration)); // TODO: handle error
+				self.info_sender.send(AudioInfo::SongDuration(song_id, duration)).unwrap(); // TODO: handle error
 			}
 			LoadInfo::Err(song, e) => {
-				let _ = self.info_sender.send(AudioInfo::FailedOpen(song, e)); // TODO: handle error
+				self.info_sender.send(AudioInfo::FailedOpen(song, e)).unwrap(); // TODO: handle error
 			}
 		}
 	}
