@@ -6,22 +6,6 @@ Musicus is a terminal music player like [cmus](https://github.com/cmus/cmus),
 written in the [Rust Programming Language](https://www.rust-lang.org/learn).
 This project is still in early development but feel free to try it out.
 
-## Participate in the project
-
-### Issue Report
-If you find a bug, I would appreciate it if you write an issue report.
-Since ncurses prevents the normal backtrace output, you can use the following command
-in a bash shell to generate a backtrace:
-```bash
-RUST_BACKTRACE=full cargo run 2> error_log.txt
-```
-
-In debug mode it takes some time to start the program and play songs, but the backtrace is more useful.
-If it takes too long, add `--release` to the cargo command.
-
-### Discussions
-If you have a question or an idea, you are very welcome to express it in the
-[discussions](https://github.com/Bluemi/musicus_rs/discussions) page of the repository.
 
 ## Manual
 
@@ -41,6 +25,8 @@ There are three **views** in Musicus.
 3. Debug
 
 You can switch between these views by pressing one of the buttons `1`, `2`, `3`.
+
+---
 
 #### File Browser View
 The File Browser View enables you to search for music files in your Filesystem.
@@ -65,6 +51,8 @@ added to this playlist.
 If you have text files that list music file paths (like cmus playlists),
 you can import those by pressing `i`.
 
+---
+
 #### Playlist View
 The Playlist View manages your playlists. Playlists are shown on the left side. Songs of the selected playlist are shown on the right.
 
@@ -77,8 +65,26 @@ The Playlist View manages your playlists. Playlists are shown on the left side. 
 - `y` copy selected song to clipboard
 - `p` paste clipboard to playlist
 
+---
+
 #### Debug View
 The last view is the Debug View. Here you can see logs of musicus.
 
 You can scroll by pressing `j` or `k`.
 
+## Participate in the project
+
+### Issue Report
+If you find a bug, I would appreciate it if you write an issue report.
+Since ncurses prevents the normal backtrace output, you can use the following command
+in a bash shell to generate a backtrace:
+```bash
+RUST_BACKTRACE=full cargo run 2> error_log.txt
+```
+
+In debug mode it takes some time to start the program and play songs, but the backtrace is more useful.
+If it takes too long, add `--release` to the cargo command.
+
+### Discussions
+If you have a question or an idea, you are very welcome to express it in the
+[discussions](https://github.com/Bluemi/musicus_rs/discussions) page of the repository.
