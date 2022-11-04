@@ -66,10 +66,16 @@ If you have text files that list music file paths (like cmus playlists),
 you can import those by pressing `i`.
 
 #### Playlist View
-The Playlist View manages your playlists. With `h`, `j`, `k`, `l` you navigate in your
-playlists. If you want to play a song in a playlist, press `Enter`.
-Press `F` to move the cursor to the currently played song. Press `D` to remove the selected song from this playlist.
-`O` tries to optimize the song titles by removing parts that occur in every title of a directory.
+The Playlist View manages your playlists. Playlists are shown on the left side. Songs of the selected playlist are shown on the right.
+
+- `h`, `l` switch between playlist selection and song selection
+- `j`, `k` next/previous song/playlist
+- `Enter` play selected song
+- `F` moves the cursor to the currently played song
+- `D` remove the selected song
+- `O` tries to optimize the song titles by removing parts that occur in every title of a directory
+- `y` copy selected song to clipboard
+- `p` paste clipboard to playlist
 
 #### Debug View
 The last view is the Debug View. Here you can see logs of musicus.
