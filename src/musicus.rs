@@ -13,7 +13,7 @@ use serde::{Serialize, Deserialize};
 use std::time::Duration;
 use crate::play_state::{PlayPosition, PlayState, PlayMode};
 use crate::debug_manager::DebugManager;
-use crate::song::Song;
+use crate::song::{Song, SongID};
 use crate::song::song_buffer::SongBuffer;
 use crate::string_helpers::{cut_str_left, limit_str_right};
 
@@ -37,6 +37,7 @@ pub struct Musicus {
 	volume: i32,
 	follow: bool,
 	screen_dimensions: (i32, i32), // height, width
+	clipboard: Option<SongID>,
 }
 
 struct SongInfo {
@@ -111,6 +112,7 @@ impl Musicus {
 			volume: cache.volume,
 			follow: cache.follow,
 			screen_dimensions,
+			clipboard: None,
 		}
 	}
 
@@ -279,6 +281,8 @@ impl Musicus {
 						('j', ViewState::Playlists) => self.playlist_manager.move_down(self.get_num_rows()),
 						('k', ViewState::Playlists) => self.playlist_manager.move_up(self.get_num_rows()),
 						('O', ViewState::Playlists) => self.playlist_manager.optimize_names(&mut self.song_buffer),
+						('y', ViewState::Playlists) => self.copy_playlist_song_to_clipboard(),
+						('p', ViewState::Playlists) => self.paste_clipboard_song_to_playlist(),
 						('j', ViewState::Debug) => self.debug_manager.scroll(1),
 						('k', ViewState::Debug) => self.debug_manager.scroll(-1),
 						('c', _) => self.toggle_pause(),
@@ -488,6 +492,16 @@ impl Musicus {
 				let line = limit_str_right(&line, ((self.window.get_max_x() - x_pos).max(0) as usize).min(line.len()));
 				self.window.mvaddstr(y_pos as i32, x_pos.max(0), line);
 			}
+		}
+	}
+
+	fn copy_playlist_song_to_clipboard(&mut self) {
+		self.clipboard = self.playlist_manager.get_shown_song();
+	}
+
+	fn paste_clipboard_song_to_playlist(&mut self) {
+		if let Some(song_id) = self.clipboard {
+			self.playlist_manager.insert_song(song_id);
 		}
 	}
 }

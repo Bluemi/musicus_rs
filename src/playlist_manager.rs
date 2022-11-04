@@ -344,7 +344,15 @@ impl PlaylistManager {
 				song.set_title(&title);
 			}
 		}
+	}
 
+	pub fn insert_song(&mut self, song_id: SongID) {
+		if let Some(playlist) = self.get_shown_playlist() {
+			let cursor_position = self.scroll_cursor_positions[&playlist.id].1;
+			if let Some(playlist) = self.get_mut_shown_playlist() {
+				playlist.songs.insert(cursor_position+1, song_id);
+			}
+		}
 	}
 }
 
