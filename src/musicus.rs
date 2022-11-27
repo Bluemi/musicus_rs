@@ -172,7 +172,7 @@ impl Musicus {
 				self.follow_playlist();
 			}
 		} else {
-			self.debug_manager.add_error_entry("failed to start next song: {}".to_string());
+			self.debug_manager.add_error_entry("failed to start next song".to_string());
 		}
 	}
 
